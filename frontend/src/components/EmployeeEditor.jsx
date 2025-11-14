@@ -1,0 +1,353 @@
+import { useEffect, useMemo, useState } from 'react';
+import dayjs from 'dayjs';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+
+const STATUS_OPTIONS = ['Active', 'On Leave'];
+const GENDER_OPTIONS = ['Male', 'Female'];
+const ISO_DATE_FORMAT = 'YYYY-MM-DD';
+const DISPLAY_DATE_FORMAT = 'DD/MM/YYYY';
+const TODAY = dayjs();
+const BIRTHDAY_MIN_DATE = dayjs().subtract(80, 'year');
+const DEFAULT_DEPARTMENT = 'ဖဲဝေ';
+const STATIC_DEPARTMENTS = ['သန့်ရှင်းရေး'];
+const EXCLUDED_DEPARTMENTS = new Set(['ဆရာ']);
+
+const toDayjsValue = (value) => {
+  if (!value) return null;
+  const parsed = dayjs(value, ISO_DATE_FORMAT, true);
+  return parsed.isValid() ? parsed : null;
+};
+
+const toIsoString = (value) => {
+  if (!value) return '';
+  return value.isValid() ? value.format(ISO_DATE_FORMAT) : '';
+};
+
+const sanitizeDepartment = (value) => {
+  if (!value || EXCLUDED_DEPARTMENTS.has(value)) return DEFAULT_DEPARTMENT;
+  return value;
+};
+
+const EMPTY_FORM = {
+  name: '',
+  department: DEFAULT_DEPARTMENT,
+  status: 'Active',
+  gender: 'Female',
+  birthday: '',
+  hireDate: '',
+  address: '',
+  phone: '',
+};
+
+function toForm(employee) {
+  if (!employee) return EMPTY_FORM;
+  return {
+    name: employee.name || '',
+    department: sanitizeDepartment(employee.department),
+    status: employee.status || 'Active',
+    gender: employee.gender || 'Female',
+    birthday: employee.birthday || '',
+    hireDate: employee.hireDate || '',
+    address: employee.address || '',
+    phone: employee.phone || '',
+  };
+}
+
+export function EmployeeEditor({
+  mode = 'create',
+  employee,
+  onSubmit,
+  onCancel,
+  busy,
+  error,
+  helper,
+  departments = [],
+  fieldErrors = {},
+  onClearFieldError,
+}) {
+  const [form, setForm] = useState(toForm(employee));
+  const [departmentsTouched, setDepartmentsTouched] = useState(false);
+  const availableDepartments = useMemo(() => {
+    const set = new Set(
+      [...STATIC_DEPARTMENTS, ...departments.filter(Boolean)].filter((dept) => !EXCLUDED_DEPARTMENTS.has(dept)),
+    );
+    if (form.department && !EXCLUDED_DEPARTMENTS.has(form.department)) {
+      set.add(form.department);
+    }
+    return Array.from(set);
+  }, [departments, form.department]);
+
+  useEffect(() => {
+    setForm(toForm(employee));
+    setDepartmentsTouched(false);
+  }, [employee]);
+
+  useEffect(() => {
+    if (!form.department && availableDepartments.length && !departmentsTouched) {
+      setForm((prev) => ({ ...prev, department: availableDepartments[0] }));
+    }
+  }, [availableDepartments, form.department, departmentsTouched]);
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    onClearFieldError?.(name);
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const payload = {
+      name: form.name.trim(),
+      department: form.department.trim(),
+      status: mode === 'edit' ? form.status : 'Active',
+      gender: form.gender || 'Male',
+      birthday: form.birthday || undefined,
+      hireDate: form.hireDate || undefined,
+      address: form.address.trim(),
+      phone: form.phone ? form.phone.replace(/\D/g, '') : '',
+    };
+    if (payload.birthday) {
+      const birthDate = new Date(payload.birthday);
+      if (!Number.isNaN(birthDate.getTime())) {
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const hasHadBirthday =
+          today.getMonth() > birthDate.getMonth() ||
+          (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+        if (!hasHadBirthday) {
+          age -= 1;
+        }
+        payload.age = age;
+      }
+    }
+    if (!payload.department && availableDepartments.length) {
+      payload.department = availableDepartments[0];
+    }
+    if (!payload.department) {
+      return;
+    }
+    onSubmit(payload);
+  };
+
+  const handleDatePickerChange = (field) => (value) => {
+    onClearFieldError?.(field);
+    setForm((prev) => ({
+      ...prev,
+      [field]: toIsoString(value),
+    }));
+  };
+
+  const getDatePickerSlots = (field) => ({
+    textField: {
+      fullWidth: true,
+      size: 'small',
+      placeholder: 'DD/MM/YYYY',
+      helperText: fieldErrors[field] || ' ',
+      error: Boolean(fieldErrors[field]),
+      inputProps: {
+        placeholder: 'DD/MM/YYYY',
+        readOnly: false,
+      },
+      sx: {
+        '& .MuiInputBase-root': {
+          borderRadius: '0.75rem',
+          fontSize: '0.875rem',
+          fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont',
+        },
+        '& .MuiOutlinedInput-notchedOutline': {
+          borderColor: '#e2e8f0',
+        },
+        '&:hover .MuiOutlinedInput-notchedOutline': {
+          borderColor: '#93c5fd',
+        },
+        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+          borderColor: '#2563eb',
+        },
+      },
+    },
+    actionBar: { actions: ['clear'] },
+  });
+
+  return (
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-name">
+              Full Name <span className="font-semibold text-rose-500">*</span>
+              {fieldErrors.name ? <span className="ml-2 text-xs text-rose-500">{fieldErrors.name}</span> : null}
+            </label>
+            <input
+              id="emp-name"
+              name="name"
+              type="text"
+              value={form.name}
+              onChange={handleChange}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
+              required
+            />
+          </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Department <span className="font-semibold text-rose-500"> *</span>
+          </p>
+          {availableDepartments.length ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {availableDepartments.map((dept) => {
+                const isActive = form.department === dept;
+                return (
+                  <button
+                    key={dept}
+                    type="button"
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                      isActive
+                        ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
+                        : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
+                    }`}
+                    onClick={() => {
+                      onClearFieldError?.('department');
+                      setForm((prev) => ({ ...prev, department: dept }));
+                      setDepartmentsTouched(true);
+                    }}
+                  >
+                    {dept}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-slate-500">No departments available yet.</p>
+          )}
+        </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {['Active', 'On Leave'].map((statusOption) => {
+                const isActive = form.status === statusOption;
+                return (
+                  <button
+                    key={statusOption}
+                    type="button"
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                      isActive
+                        ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
+                        : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
+                    }`}
+                    onClick={() => setForm((prev) => ({ ...prev, status: statusOption }))}
+                  >
+                    {statusOption}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gender</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {GENDER_OPTIONS.map((option) => {
+                const isActive = form.gender === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                      isActive
+                        ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
+                        : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
+                    }`}
+                    onClick={() => setForm((prev) => ({ ...prev, gender: option }))}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-birthday">
+            Birthday <span className="font-semibold text-rose-500">*</span>
+            {fieldErrors.birthday ? <span className="ml-2 text-xs text-rose-500">{fieldErrors.birthday}</span> : null}
+          </label>
+          <div className="mt-1">
+            <DatePicker
+              value={toDayjsValue(form.birthday)}
+              onChange={handleDatePickerChange('birthday')}
+              format={DISPLAY_DATE_FORMAT}
+              disableFuture
+              minDate={BIRTHDAY_MIN_DATE}
+              maxDate={TODAY}
+              openTo="year"
+              views={['year', 'month', 'day']}
+              clearable
+              slotProps={getDatePickerSlots('birthday')}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-hire-date">
+            Hire Date
+          </label>
+          <div className="mt-1">
+            <DatePicker
+              value={toDayjsValue(form.hireDate)}
+              onChange={handleDatePickerChange('hireDate')}
+              format={DISPLAY_DATE_FORMAT}
+              disableFuture
+              maxDate={TODAY}
+              views={['year', 'month', 'day']}
+              clearable
+              slotProps={getDatePickerSlots('hireDate')}
+            />
+          </div>
+        </div>
+          <div className="md:col-span-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-address">
+              Address
+            </label>
+            <input
+              id="emp-address"
+              name="address"
+              type="text"
+              value={form.address}
+              onChange={handleChange}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-phone">
+              Phone
+            </label>
+            <input
+              id="emp-phone"
+              name="phone"
+              type="text"
+              value={form.phone}
+              onChange={handleChange}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
+            />
+          </div>
+        </div>
+        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+        {helper ? <p className="text-sm text-slate-500">{helper}</p> : null}
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-xl bg-brand-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:opacity-60"
+          >
+            {busy ? 'Saving…' : mode === 'edit' ? 'Update Employee' : 'Create Employee'}
+          </button>
+        </div>
+      </form>
+    </LocalizationProvider>
+  );
+}
