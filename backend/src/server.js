@@ -1,11 +1,11 @@
 require('dotenv').config();
-
+const cors = require('cors');
 const app = require('./app');
 const pool = require('./db/pool');
 const { ensureUsersTable } = require('./db/ensureUsersTable');
 
 const PORT = process.env.PORT || 5000;
-
+app.use(cors());
 async function start() {
   try {
     await pool.query('SELECT 1');
