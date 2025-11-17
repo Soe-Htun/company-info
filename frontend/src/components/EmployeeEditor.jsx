@@ -69,6 +69,14 @@ export function EmployeeEditor({
 }) {
   const [form, setForm] = useState(toForm(employee));
   const [departmentsTouched, setDepartmentsTouched] = useState(false);
+  const getInputClasses = (field) => {
+    const hasError = Boolean(fieldErrors[field]);
+    const base =
+      'mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 transition';
+    const normal = 'border-slate-200 focus:border-brand-accent focus:ring-brand-soft';
+    const errored = 'border-rose-400 focus:border-rose-500 focus:ring-rose-200';
+    return `${base} ${hasError ? errored : normal}`;
+  };
   const availableDepartments = useMemo(() => {
     const set = new Set(
       [...STATIC_DEPARTMENTS, ...departments.filter(Boolean)].filter((dept) => !EXCLUDED_DEPARTMENTS.has(dept)),
@@ -177,7 +185,6 @@ export function EmployeeEditor({
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-name">
               Full Name <span className="font-semibold text-rose-500">*</span>
-              {fieldErrors.name ? <span className="ml-2 text-xs text-rose-500">{fieldErrors.name}</span> : null}
             </label>
             <input
               id="emp-name"
@@ -185,9 +192,10 @@ export function EmployeeEditor({
               type="text"
               value={form.name}
               onChange={handleChange}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
+              className={getInputClasses('name')}
               required
             />
+            {fieldErrors.name ? <p className="mt-1 text-xs text-rose-600">{fieldErrors.name}</p> : null}
           </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -268,7 +276,6 @@ export function EmployeeEditor({
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-birthday">
             Birthday <span className="font-semibold text-rose-500">*</span>
-            {fieldErrors.birthday ? <span className="ml-2 text-xs text-rose-500">{fieldErrors.birthday}</span> : null}
           </label>
           <div className="mt-1">
             <DatePicker
@@ -287,7 +294,7 @@ export function EmployeeEditor({
         </div>
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-hire-date">
-            Hire Date
+            Start Date
           </label>
           <div className="mt-1">
             <DatePicker

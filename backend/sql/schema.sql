@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS employees (
   status ENUM('Active', 'On Leave') DEFAULT 'Active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY employee_name_department_unique (name, department),
   INDEX idx_department (department)
 );
 

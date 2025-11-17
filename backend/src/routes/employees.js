@@ -125,19 +125,21 @@ function buildIdentifierWhere(identifier) {
   return { clause: 'id = ?', value: numeric };
 }
 
-async function assertUniqueName(name, excludeId = null) {
-  if (!name && name !== '') return;
-  const trimmed = String(name).trim();
-  if (!trimmed) return;
-  let sql = 'SELECT id FROM employees WHERE name = ?';
-  const params = [trimmed];
+async function assertUniqueNameInDepartment(name, department, excludeId = null) {
+  if ((!name && name !== '') || (!department && department !== '')) return;
+  const trimmedName = String(name).trim();
+  const trimmedDepartment = String(department).trim();
+  if (!trimmedName || !trimmedDepartment) return;
+
+  let sql = 'SELECT id FROM employees WHERE name = ? AND department = ?';
+  const params = [trimmedName, trimmedDepartment];
   if (excludeId) {
     sql += ' AND id <> ?';
     params.push(excludeId);
   }
   const [rows] = await pool.execute(sql, params);
   if (rows.length) {
-    const error = new Error('Employee name already exists');
+    const error = new Error('Employee name already exists in this department');
     error.status = 409;
     throw error;
   }
@@ -172,10 +174,8 @@ router.get('/', async (req, res, next) => {
     const params = [];
 
     if (search) {
-      filters.push(`(name LIKE ? OR department LIKE ? OR address LIKE ? OR phone LIKE ?)`);
-      for (let i = 0; i < 4; i += 1) {
-        params.push(`%${search}%`);
-      }
+      filters.push(`name LIKE ?`);
+      params.push(`%${search}%`);
     }
 
     if (department) {
@@ -249,14 +249,15 @@ router.get('/stats', async (_req, res, next) => {
     );
 
     const today = new Date();
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const upcoming = birthdayRows
       .map((row) => {
         const birthday = new Date(row.birthday);
-        const nextBirthday = new Date(today.getFullYear(), birthday.getMonth(), birthday.getDate());
-        if (nextBirthday < today) {
-          nextBirthday.setFullYear(today.getFullYear() + 1);
+        let nextBirthday = new Date(todayMidnight.getFullYear(), birthday.getMonth(), birthday.getDate());
+        if (nextBirthday < todayMidnight) {
+          nextBirthday = new Date(todayMidnight.getFullYear() + 1, birthday.getMonth(), birthday.getDate());
         }
-        const daysUntil = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
+        const daysUntil = Math.floor((nextBirthday - todayMidnight) / (1000 * 60 * 60 * 24));
         return {
           id: row.id,
           name: row.name,
@@ -283,7 +284,7 @@ router.get('/stats', async (_req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    await assertUniqueName(req.body.name);
+    await assertUniqueNameInDepartment(req.body.name, req.body.department);
     const { columns, values } = buildEmployeePayload(req.body, { isCreate: true });
     const placeholders = columns.map(() => '?').join(', ');
     const query = `INSERT INTO employees (${columns.join(', ')}) VALUES (${placeholders})`;
@@ -293,8 +294,8 @@ router.post('/', async (req, res, next) => {
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       const message = err.sqlMessage || '';
-      if (message.includes('employee_name_unique')) {
-        return res.status(409).json({ message: 'Employee name already exists' });
+      if (message.includes('employee_name_unique') || message.includes('employee_name_department_unique')) {
+        return res.status(409).json({ message: 'Employee name already exists in this department' });
       }
       return res.status(409).json({ message: 'Duplicate employee entry' });
     }
@@ -307,9 +308,24 @@ router.put('/:id', async (req, res, next) => {
     const { columns, values } = buildEmployeePayload(req.body, { isCreate: false });
     const setClause = columns.map((column) => `${column} = ?`).join(', ');
     const identifier = buildIdentifierWhere(req.params.id);
-    if (Object.prototype.hasOwnProperty.call(req.body, 'name')) {
-      await assertUniqueName(req.body.name, identifier.value);
+
+    const shouldCheckName =
+      Object.prototype.hasOwnProperty.call(req.body, 'name') ||
+      Object.prototype.hasOwnProperty.call(req.body, 'department');
+    if (shouldCheckName) {
+      const existingEmployee = await fetchEmployeeBy(identifier);
+      if (!existingEmployee) {
+        return res.status(404).json({ message: 'Employee not found' });
+      }
+      const nameToCheck = Object.prototype.hasOwnProperty.call(req.body, 'name')
+        ? req.body.name
+        : existingEmployee.name;
+      const departmentToCheck = Object.prototype.hasOwnProperty.call(req.body, 'department')
+        ? req.body.department
+        : existingEmployee.department;
+      await assertUniqueNameInDepartment(nameToCheck, departmentToCheck, identifier.value);
     }
+
     const query = `UPDATE employees SET ${setClause} WHERE ${identifier.clause}`;
     const [result] = await pool.execute(query, [...values, identifier.value]);
     if (!result.affectedRows) {
@@ -320,8 +336,8 @@ router.put('/:id', async (req, res, next) => {
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       const message = err.sqlMessage || '';
-      if (message.includes('employee_name_unique')) {
-        return res.status(409).json({ message: 'Employee name already exists' });
+      if (message.includes('employee_name_unique') || message.includes('employee_name_department_unique')) {
+        return res.status(409).json({ message: 'Employee name already exists in this department' });
       }
       return res.status(409).json({ message: 'Duplicate employee entry' });
     }

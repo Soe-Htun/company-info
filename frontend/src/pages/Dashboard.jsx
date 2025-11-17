@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { UserMenu } from '../components/UserMenu';
+import { toast } from 'react-toastify';
 
 const SORT_COLUMN_MAP = {
   name: 'name',
@@ -58,12 +59,13 @@ export default function Dashboard() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const navigate = useNavigate();
+  const toastOptions = {};
 
   const statusParam = filters.status === 'all' ? undefined : filters.status;
 
   const exportCsv = () => {
     if (!employees.length) return;
-    const headers = ['Name', 'Birthday', 'Hire Date', 'Address', 'Age', 'Department', 'Status'];
+    const headers = ['Name', 'Birthday', 'Start Date', 'Address', 'Age', 'Department', 'Status'];
     const rows = employees.map((employee) => [
       employee.name,
       formatDateDmy(employee.birthday),
@@ -192,6 +194,10 @@ export default function Dashboard() {
       const method = editorMode === 'edit' ? 'PUT' : 'POST';
       await request({ path, method, token, body: payload });
       setRefreshIndex((value) => value + 1);
+      toast.success(
+        editorMode === 'edit' ? 'Employee updated successfully' : 'Employee created successfully',
+        toastOptions,
+      );
       setIsEditorOpen(false);
       closeEditor();
     } catch (err) {
@@ -220,6 +226,7 @@ export default function Dashboard() {
     try {
       await request({ path: `/api/employees/${deleteTarget.id}`, method: 'DELETE', token });
       setRefreshIndex((value) => value + 1);
+      toast.success('Employee deleted successfully', toastOptions);
     } catch (err) {
       if (err.status === 401) return;
       setError(err.message);
@@ -240,6 +247,7 @@ export default function Dashboard() {
   }, [stats]);
 
   return (
+    <>
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
@@ -308,7 +316,7 @@ export default function Dashboard() {
                         type="text"
                         value={filters.search}
                         onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-                        placeholder="Name, department, address..."
+                        placeholder="Search Name"
                         className="w-full rounded-xl border border-slate-200 px-3 py-2 pr-10 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
                       />
                       {filters.search ? (
@@ -491,5 +499,6 @@ export default function Dashboard() {
         onCancel={cancelDelete}
       />
     </div>
+    </>
   );
 }

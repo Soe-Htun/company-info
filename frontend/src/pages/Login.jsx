@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const { login } = useAuth();
-  const [form, setForm] = useState({ username: '', password: '' });
+  const [form, setForm] = useState({ username: '99admin', password: 'StrongPassword' });
   const [status, setStatus] = useState({ loading: false, error: null });
   const [showPassword, setShowPassword] = useState(false);
 

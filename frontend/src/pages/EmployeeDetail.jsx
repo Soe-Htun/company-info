@@ -3,15 +3,34 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { request } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { formatDateDmy, formatDateNamedMonth } from '../utils/date';
 
-const formatDateDmy = (value) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
+const formatAge = (birthday) => {
+  if (!birthday) return '—';
+  const birthDate = new Date(birthday);
+  if (Number.isNaN(birthDate.getTime())) return '—';
+  const today = new Date();
+  let years = today.getFullYear() - birthDate.getFullYear();
+  let months = today.getMonth() - birthDate.getMonth();
+  const dayDiff = today.getDate() - birthDate.getDate();
+
+  if (dayDiff < 0) {
+    months -= 1;
+  }
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  const parts = [];
+  if (years > 0) {
+    parts.push(`${years} year${years === 1 ? '' : 's'}`);
+  }
+  if (months > 0) {
+    parts.push(`${months} month${months === 1 ? '' : 's'}`);
+  }
+  return parts.join(' and ');
 };
 
 export default function EmployeeDetail() {
@@ -36,9 +55,9 @@ export default function EmployeeDetail() {
 
   const profileFields = useMemo(
     () => [
-      { label: 'Birthday', value: formatDateDmy(employee?.birthday) },
-      { label: 'Hire Date', value: formatDateDmy(employee?.hireDate) },
-      { label: 'Age', value: employee?.age },
+      { label: 'Birthday', value: formatDateNamedMonth(employee?.birthday) },
+      { label: 'Start Date', value: formatDateDmy(employee?.hireDate) },
+      { label: 'Age', value: formatAge(employee?.birthday) },
       { label: 'Gender', value: employee?.gender },
     ],
     [employee],
@@ -92,7 +111,6 @@ export default function EmployeeDetail() {
             <div className="mt-4 flex flex-wrap gap-2">
               {[
                 { label: 'Department', value: employee?.department },
-                { label: 'Record ID', value: employee?.id },
                 { label: 'Status', value: employee?.status },
               ].map((tag) => (
                 <span
