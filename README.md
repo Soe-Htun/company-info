@@ -28,7 +28,7 @@ cp .env.example .env         # update VITE_API_URL if needed
 Key `.env` values:
 
 - `CLIENT_ORIGIN` – set to `*` (default) to allow any origin while developing, or provide a comma-separated allow-list.
-- `DB_PASSWORD` – seeded to `StrongPass123` per request; make sure the MySQL user you connect with uses this password.
+- `DB_USER`/`DB_PASSWORD` – app connects as `mydbuser` with password `StrongPass123`; ensure this MySQL user exists and has access.
 - `JWT_SECRET` – change in production.
 
 ## 2. Provision the Database
@@ -38,14 +38,14 @@ Key `.env` values:
    ```bash
    mysql -u root -p <<'SQL'
    CREATE DATABASE IF NOT EXISTS employee_info;
-   CREATE USER IF NOT EXISTS 'employee_admin'@'%' IDENTIFIED BY 'StrongPass123';
-   CREATE USER IF NOT EXISTS 'employee_admin'@'localhost' IDENTIFIED BY 'StrongPass123';
-   GRANT ALL PRIVILEGES ON employee_info.* TO 'employee_admin'@'%';
-   GRANT ALL PRIVILEGES ON employee_info.* TO 'employee_admin'@'localhost';
+   CREATE USER IF NOT EXISTS 'mydbuser'@'%' IDENTIFIED BY 'StrongPass123';
+   CREATE USER IF NOT EXISTS 'mydbuser'@'localhost' IDENTIFIED BY 'StrongPass123';
+   GRANT ALL PRIVILEGES ON employee_info.* TO 'mydbuser'@'%';
+   GRANT ALL PRIVILEGES ON employee_info.* TO 'mydbuser'@'localhost';
    FLUSH PRIVILEGES;
    SQL
 
-   mysql -u employee_admin -pStrongPass123 employee_info < backend/sql/schema.sql
+   mysql -u mydbuser -pStrongPass123 employee_info < backend/sql/schema.sql
    ```
    That script now creates both `employees` and `users` (with the default `99admin` / `StrongPassword` account).
    If you provisioned an earlier version of the schema, bring it up to date with:

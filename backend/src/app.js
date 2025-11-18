@@ -9,24 +9,12 @@ const userRoutes = require('./routes/users');
 
 const app = express();
 
-function resolveAllowedOrigins() {
-  const raw = process.env.CLIENT_ORIGIN;
-  if (!raw || raw === '*' || raw === 'true') {
-    return true;
-  }
-  return raw
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-const corsOptions = {
-  origin: resolveAllowedOrigins(),
+app.use(cors({
+  origin: true,
   credentials: true,
-  optionsSuccessStatus: 204,
-};
-
-app.use(cors(corsOptions));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(
   helmet({
     crossOriginResourcePolicy: false,
