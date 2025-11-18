@@ -8,11 +8,13 @@ import { Pagination } from '../components/Pagination';
 import { StatCard } from '../components/StatCard';
 import { UpcomingBirthdays } from '../components/UpcomingBirthdays';
 import { UserManagement } from '../components/UserManagement';
+import { OnLeaveToday } from '../components/OnLeaveToday';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { UserMenu } from '../components/UserMenu';
+import { ActiveFilters } from '../components/ActiveFilters';
 import { toast } from 'react-toastify';
 
 const SORT_COLUMN_MAP = {
@@ -49,6 +51,7 @@ export default function Dashboard() {
   const [departments, setDepartments] = useState([]);
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [onLeaveToday, setOnLeaveToday] = useState({ items: [], total: 0, loading: false });
   const [refreshIndex, setRefreshIndex] = useState(0);
   const [activePanel, setActivePanel] = useState('employees');
   const [editorMode, setEditorMode] = useState(null);
@@ -161,6 +164,28 @@ export default function Dashboard() {
     setPage(1);
   }, [sort.sortBy, sort.sortDir]);
 
+  useEffect(() => {
+    if (!token) return;
+    const controller = new AbortController();
+    setOnLeaveToday((prev) => ({ ...prev, loading: true }));
+    const query = buildQuery({
+      page: 1,
+      pageSize: 5,
+      status: 'On Leave',
+      sortBy: 'name',
+      sortDir: 'asc',
+    });
+    request({ path: `/api/employees${query}`, token, signal: controller.signal })
+      .then((payload) => {
+        setOnLeaveToday({ items: payload.data || [], total: payload.meta?.totalItems || 0, loading: false });
+      })
+      .catch((err) => {
+        if (err.name === 'AbortError' || err.status === 401) return;
+        setOnLeaveToday({ items: [], total: 0, loading: false });
+      });
+    return () => controller.abort();
+  }, [token, refreshIndex]);
+
   const openCreate = () => {
     setEditorMode('create');
     setEditingEmployee(null);
@@ -245,6 +270,15 @@ export default function Dashboard() {
     if (!stats?.departmentDistribution?.length) return 1;
     return Math.max(...stats.departmentDistribution.map((item) => item.count));
   }, [stats]);
+
+  const clearFilter = (key) => {
+    setFilters((prev) => {
+      if (key === 'search') return { ...prev, search: '' };
+      if (key === 'department') return { ...prev, department: '' };
+      if (key === 'status') return { ...prev, status: 'all' };
+      return prev;
+    });
+  };
 
   return (
     <>
@@ -402,6 +436,15 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
+              <ActiveFilters
+                search={filters.search}
+                department={filters.department}
+                status={filters.status}
+                onClear={clearFilter}
+                onClearAll={() =>
+                  setFilters((prev) => ({ ...prev, search: '', department: '', status: 'all', pageSize: prev.pageSize }))
+                }
+              />
               {error ? <p className="text-sm text-rose-600">{error}</p> : null}
               <EmployeeTable
                 data={employees}
@@ -449,6 +492,9 @@ export default function Dashboard() {
                 )}
               </div>
               <UpcomingBirthdays items={stats?.upcomingBirthdays} />
+              {(onLeaveToday.loading || onLeaveToday.total > 0) && (
+                <OnLeaveToday items={onLeaveToday.items} total={onLeaveToday.total} loading={onLeaveToday.loading} />
+              )}
             </section>
           </>
         ) : (

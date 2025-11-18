@@ -39,6 +39,7 @@ export default function EmployeeDetail() {
   const navigate = useNavigate();
   const [employee, setEmployee] = useState(null);
   const [status, setStatus] = useState({ loading: true, error: null });
+  const [leaveHistory, setLeaveHistory] = useState(null);
 
   useEffect(() => {
     if (!token) return;
@@ -46,6 +47,7 @@ export default function EmployeeDetail() {
     request({ path: `/api/employees/${id}`, token })
       .then((data) => {
         setEmployee(data);
+        setLeaveHistory(data.leaveHistory || null);
         setStatus({ loading: false, error: null });
       })
       .catch((err) => {
@@ -71,6 +73,12 @@ export default function EmployeeDetail() {
     [employee],
   );
 
+  const leaveList = leaveHistory?.dates || [];
+  const leaveHeader =
+    leaveHistory?.periodStart && leaveHistory?.periodEnd
+      ? `This company month (${formatDateNamedMonth(leaveHistory.periodStart)} → ${formatDateNamedMonth(leaveHistory.periodEnd)})`
+      : 'This company month';
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur-sm">
@@ -82,7 +90,6 @@ export default function EmployeeDetail() {
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-sm font-semibold text-slate-900">{user?.username}</p>
-              <p className="text-xs text-slate-500">Demo administrator</p>
             </div>
             <button
               type="button"
@@ -153,6 +160,27 @@ export default function EmployeeDetail() {
                   ))}
                 </dl>
               </div>
+              <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Leave History</p>
+                <p className="text-xs text-slate-500">{leaveHeader}</p>
+                {!leaveList.length ? (
+                  <p className="mt-3 text-sm text-slate-500">No leave recorded this period.</p>
+                ) : (
+                  <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                    {leaveList.map((date) => (
+                      <li
+                        key={date}
+                        className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                      >
+                        <span className="font-medium text-slate-800">{formatDateNamedMonth(date)}</span>
+                        <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                          On Leave
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
             </div>
           </div>
         )}

@@ -56,6 +56,15 @@ Key `.env` values:
    ALTER TABLE employees MODIFY status ENUM('Active','On Leave') DEFAULT 'Active';
    -- drop unwanted departments
    DELETE FROM employees WHERE department IN ('Networking','Architecture');
+   -- new leave tracking table
+   CREATE TABLE IF NOT EXISTS employee_leave_log (
+     id INT AUTO_INCREMENT PRIMARY KEY,
+     employee_id INT NOT NULL,
+     leave_date DATE NOT NULL,
+     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+     UNIQUE KEY employee_leave_unique (employee_id, leave_date),
+     CONSTRAINT fk_employee_leave_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+   );
    ```
 3. Verify that the `employees` and `users` tables contain data. Generate hashes for new passwords with `node -e "console.log(require('bcryptjs').hashSync('MyPassword', 10))"`. Once logged in, you can also add accounts from the new “User Accounts” tab in the dashboard.
 
@@ -98,6 +107,12 @@ Visit `http://localhost:5173`, log in with the demo credentials you inserted int
 - `GET /api/employees/stats` – summary metrics plus upcoming birthdays (30‑day window).
 
 All `/api/employees/*` routes expect a valid `Authorization: Bearer <token>` header.
+
+## Leave Status Rules
+
+- Marking an employee “On Leave” records that date; it is automatically reset to “Active” the next day unless re-applied.
+- Leave is limited to 4 days per custom month (11th → 10th). Consecutive days are allowed as long as the 4-day cap isn’t exceeded.
+- Attempts that violate the limits return a 400 error with a message explaining why.
 
 ## Frontend Highlights
 

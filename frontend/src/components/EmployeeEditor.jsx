@@ -37,6 +37,7 @@ const EMPTY_FORM = {
   gender: 'Female',
   birthday: '',
   hireDate: '',
+  leaveDate: '',
   address: '',
   phone: '',
 };
@@ -50,6 +51,7 @@ function toForm(employee) {
     gender: employee.gender || 'Female',
     birthday: employee.birthday || '',
     hireDate: employee.hireDate || '',
+    leaveDate: employee.status === 'On Leave' ? ISO_DATE_FORMAT && dayjs().format(ISO_DATE_FORMAT) : '',
     address: employee.address || '',
     phone: employee.phone || '',
   };
@@ -69,8 +71,10 @@ export function EmployeeEditor({
 }) {
   const [form, setForm] = useState(toForm(employee));
   const [departmentsTouched, setDepartmentsTouched] = useState(false);
+  const [localErrors, setLocalErrors] = useState({});
+  const isOnLeave = form.status === 'On Leave';
   const getInputClasses = (field) => {
-    const hasError = Boolean(fieldErrors[field]);
+    const hasError = Boolean(fieldErrors[field] || localErrors[field]);
     const base =
       'mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 transition';
     const normal = 'border-slate-200 focus:border-brand-accent focus:ring-brand-soft';
@@ -90,6 +94,7 @@ export function EmployeeEditor({
   useEffect(() => {
     setForm(toForm(employee));
     setDepartmentsTouched(false);
+    setLocalErrors({});
   }, [employee]);
 
   useEffect(() => {
@@ -101,18 +106,60 @@ export function EmployeeEditor({
   const handleChange = (event) => {
     const { name, value } = event.target;
     onClearFieldError?.(name);
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setLocalErrors((prev) => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+    setForm((prev) => {
+      if (name === 'status') {
+        const nextStatus = value;
+        return {
+          ...prev,
+          status: nextStatus,
+          leaveDate:
+            nextStatus === 'On Leave' ? (prev.leaveDate || dayjs().format(ISO_DATE_FORMAT)) : '',
+        };
+      }
+      return { ...prev, [name]: value };
+    });
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    const nextLocalErrors = {};
+    if (!form.name.trim()) {
+      nextLocalErrors.name = 'Name is required';
+    }
+    if (!form.department.trim()) {
+      nextLocalErrors.department = 'Department is required';
+    }
+    if (!form.birthday) {
+      nextLocalErrors.birthday = 'Birthday is required';
+    }
+    const leaveDateValue =
+      isOnLeave
+        ? form.leaveDate || dayjs().format(ISO_DATE_FORMAT)
+        : undefined;
+    if (isOnLeave && !leaveDateValue) {
+      nextLocalErrors.leaveDate = 'Leave date is required';
+    }
+
+    if (Object.keys(nextLocalErrors).length) {
+      setLocalErrors(nextLocalErrors);
+      return;
+    }
+    setLocalErrors({});
+
     const payload = {
       name: form.name.trim(),
       department: form.department.trim(),
-      status: mode === 'edit' ? form.status : 'Active',
+      status: form.status || 'Active',
       gender: form.gender || 'Male',
       birthday: form.birthday || undefined,
       hireDate: form.hireDate || undefined,
+      leaveDate: leaveDateValue,
       address: form.address.trim(),
       phone: form.phone ? form.phone.replace(/\D/g, '') : '',
     };
@@ -141,22 +188,29 @@ export function EmployeeEditor({
 
   const handleDatePickerChange = (field) => (value) => {
     onClearFieldError?.(field);
+    setLocalErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
     setForm((prev) => ({
       ...prev,
       [field]: toIsoString(value),
     }));
   };
 
-  const getDatePickerSlots = (field) => ({
+  const getDatePickerSlots = (field, isRequired = false) => ({
     textField: {
       fullWidth: true,
       size: 'small',
       placeholder: 'DD/MM/YYYY',
-      helperText: fieldErrors[field] || ' ',
-      error: Boolean(fieldErrors[field]),
+      helperText: fieldErrors[field] || localErrors[field] || ' ',
+      error: Boolean(fieldErrors[field] || localErrors[field]),
       inputProps: {
         placeholder: 'DD/MM/YYYY',
         readOnly: false,
+        required: isRequired || undefined,
       },
       sx: {
         '& .MuiInputBase-root': {
@@ -193,65 +247,47 @@ export function EmployeeEditor({
               value={form.name}
               onChange={handleChange}
               className={getInputClasses('name')}
-              required
             />
-            {fieldErrors.name ? <p className="mt-1 text-xs text-rose-600">{fieldErrors.name}</p> : null}
+            {fieldErrors.name || localErrors.name ? (
+              <p className="mt-1 text-xs text-rose-600">{fieldErrors.name || localErrors.name}</p>
+            ) : null}
           </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Department <span className="font-semibold text-rose-500"> *</span>
-          </p>
-          {availableDepartments.length ? (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {availableDepartments.map((dept) => {
-                const isActive = form.department === dept;
-                return (
-                  <button
-                    key={dept}
-                    type="button"
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                      isActive
-                        ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
-                        : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
-                    }`}
-                    onClick={() => {
-                      onClearFieldError?.('department');
-                      setForm((prev) => ({ ...prev, department: dept }));
-                      setDepartmentsTouched(true);
-                    }}
-                  >
-                    {dept}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="mt-2 text-sm text-slate-500">No departments available yet.</p>
-          )}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Department <span className="font-semibold text-rose-500"> *</span>
+            </p>
+            {availableDepartments.length ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {availableDepartments.map((dept) => {
+                  const isActive = form.department === dept;
+                  return (
+                    <button
+                      key={dept}
+                      type="button"
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
+                          ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
+                          : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
+                        }`}
+                      onClick={() => {
+                        onClearFieldError?.('department');
+                        setForm((prev) => ({ ...prev, department: dept }));
+                        setDepartmentsTouched(true);
+                      }}
+                    >
+                      {dept}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-slate-500">No departments available yet.</p>
+            )}
+            {localErrors.department ? <p className="mt-1 text-xs text-rose-600">{localErrors.department}</p> : null}
+          </div>
         </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {['Active', 'On Leave'].map((statusOption) => {
-                const isActive = form.status === statusOption;
-                return (
-                  <button
-                    key={statusOption}
-                    type="button"
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                      isActive
-                        ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
-                        : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
-                    }`}
-                    onClick={() => setForm((prev) => ({ ...prev, status: statusOption }))}
-                  >
-                    {statusOption}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div>
+
+        <div className="grid gap-4 md:grid-cols-2 pb-2">
+          <div className="md:col-span-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gender</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {GENDER_OPTIONS.map((option) => {
@@ -260,11 +296,10 @@ export function EmployeeEditor({
                   <button
                     key={option}
                     type="button"
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                      isActive
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
                         ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
                         : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
-                    }`}
+                      }`}
                     onClick={() => setForm((prev) => ({ ...prev, gender: option }))}
                   >
                     {option}
@@ -273,42 +308,93 @@ export function EmployeeEditor({
               })}
             </div>
           </div>
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-birthday">
-            Birthday <span className="font-semibold text-rose-500">*</span>
-          </label>
-          <div className="mt-1">
-            <DatePicker
-              value={toDayjsValue(form.birthday)}
-              onChange={handleDatePickerChange('birthday')}
-              format={DISPLAY_DATE_FORMAT}
-              disableFuture
-              minDate={BIRTHDAY_MIN_DATE}
-              maxDate={TODAY}
-              openTo="year"
-              views={['year', 'month', 'day']}
-              clearable
-              slotProps={getDatePickerSlots('birthday')}
-            />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-birthday">
+              Birthday <span className="font-semibold text-rose-500">*</span>
+            </label>
+            <div className="mt-1">
+              <DatePicker
+                value={toDayjsValue(form.birthday)}
+                onChange={handleDatePickerChange('birthday')}
+                format={DISPLAY_DATE_FORMAT}
+                disableFuture
+                minDate={BIRTHDAY_MIN_DATE}
+                maxDate={TODAY}
+                openTo="year"
+                views={['year', 'month', 'day']}
+                clearable
+                slotProps={getDatePickerSlots('birthday')}
+              />
+            </div>
+            {localErrors.birthday ? <p className="mt-1 text-xs text-rose-600">{localErrors.birthday}</p> : null}
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-hire-date">
+              Start Date
+            </label>
+            <div className="mt-1">
+              <DatePicker
+                value={toDayjsValue(form.hireDate)}
+                onChange={handleDatePickerChange('hireDate')}
+                format={DISPLAY_DATE_FORMAT}
+                disableFuture
+                maxDate={TODAY}
+                views={['year', 'month', 'day']}
+                clearable
+                slotProps={getDatePickerSlots('hireDate')}
+              />
+            </div>
           </div>
         </div>
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-hire-date">
-            Start Date
-          </label>
-          <div className="mt-1">
-            <DatePicker
-              value={toDayjsValue(form.hireDate)}
-              onChange={handleDatePickerChange('hireDate')}
-              format={DISPLAY_DATE_FORMAT}
-              disableFuture
-              maxDate={TODAY}
-              views={['year', 'month', 'day']}
-              clearable
-              slotProps={getDatePickerSlots('hireDate')}
-            />
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className='pb-8'>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {['Active', 'On Leave'].map((statusOption) => {
+                const isActive = form.status === statusOption;
+                return (
+                  <button
+                    key={statusOption}
+                    type="button"
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
+                        ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
+                        : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
+                      }`}
+                    onClick={() => handleChange({ target: { name: 'status', value: statusOption } })}
+                  >
+                    {statusOption}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+          {isOnLeave ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Leave Date <span className="font-semibold text-rose-500">*</span>
+              </p>
+              <div className="mt-1">
+                <DatePicker
+                  value={toDayjsValue(form.leaveDate) || TODAY}
+                  onChange={handleDatePickerChange('leaveDate')}
+                  format={DISPLAY_DATE_FORMAT}
+                  slotProps={getDatePickerSlots('leaveDate', true)}
+                  minDate={TODAY}
+                  disableFuture={false}
+                />
+              </div>
+              {fieldErrors.leaveDate || localErrors.leaveDate ? (
+                <p className="mt-1 text-xs text-rose-600">{fieldErrors.leaveDate || localErrors.leaveDate}</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-address">
               Address

@@ -31,6 +31,15 @@ CREATE TABLE IF NOT EXISTS employees (
   INDEX idx_department (department)
 );
 
+CREATE TABLE IF NOT EXISTS employee_leave_log (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  employee_id INT NOT NULL,
+  leave_date DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY employee_leave_unique (employee_id, leave_date),
+  CONSTRAINT fk_employee_leave_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+);
+
 INSERT INTO employees (name, birthday, address, age, department, gender, phone, hire_date, status) VALUES
 ('Grace Hopper', '1985-12-09', '42 Silicon Ave, Arlington', 39, 'ဖဲရွေး', 'Female', '+1 202 555 0142', '2014-03-12', 'Active'),
 ('Guido van Rossum', '1965-01-31', 'Delphi Centrum, Amsterdam', 59, 'စူပါ', 'Male', '+31 20 555 2222', '2005-09-09', 'Active'),
