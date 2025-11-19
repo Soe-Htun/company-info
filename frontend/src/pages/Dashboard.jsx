@@ -20,6 +20,10 @@ import { ActiveFilters } from '../components/ActiveFilters';
 import { toast } from 'react-toastify';
 import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
 
 const SORT_COLUMN_MAP = {
   name: 'name',
@@ -375,11 +379,11 @@ export default function Dashboard() {
             <section className="glass-panel space-y-4 p-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="flex flex-1 flex-wrap gap-4">
-                  <div className="flex-1 min-w-[220px]">
+                  <div className="flex-1 min-w-[220px] mt-2">
                     <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="search">
                       Search
                     </label>
-                    <div className="mt-1">
+                    <div>
                       <Autocomplete
                         freeSolo
                         options={employeeSearchOptions}
@@ -403,41 +407,55 @@ export default function Dashboard() {
                       />
                     </div>
                   </div>
-                  <div className="min-w-[160px]">
+                  <div className="min-w-[160px] mt-3">
                     <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="department">
                       Department
                     </label>
-                    <select
-                      id="department"
-                      value={filters.department}
-                      onChange={(event) => setFilters((prev) => ({ ...prev, department: event.target.value }))}
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
-                    >
-                      <option value="">All</option>
-                      {departments.map((dept) => (
-                        <option key={dept} value={dept}>
-                          {dept}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-1">
+                      <FormControl fullWidth size="small">
+                        <Select
+                          id="department"
+                          value={filters.department || ''}
+                          displayEmpty
+                          onChange={(event) => {
+                            setFilters((prev) => ({ ...prev, department: event.target.value || '' }));
+                          }}
+                          renderValue={(selected) => (selected ? selected : 'All')}
+                          sx={{ borderRadius: '12px', fontSize: '0.875rem' }}
+                        >
+                          {departments.map((dept) => (
+                            <MenuItem key={dept} value={dept}>
+                              {dept}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </div>
                   </div>
-                  <div className="min-w-[140px]">
+                  <div className="min-w-[140px] mt-3">
                     <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="status">
                       Status
                     </label>
-                    <select
-                      id="status"
-                      value={filters.status}
-                      onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
-                    >
-                      <option value="all">All</option>
-                      {STATUS_OPTIONS.map((statusOption) => (
-                        <option key={statusOption} value={statusOption}>
-                          {statusOption}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-1">
+                      <FormControl fullWidth size="small">
+                        <Select
+                          id="status"
+                          value={filters.status === 'all' ? '' : filters.status}
+                          displayEmpty
+                          onChange={(event) =>
+                            setFilters((prev) => ({ ...prev, status: event.target.value || 'all' }))
+                          }
+                          renderValue={(selected) => (selected ? selected : 'All')}
+                          sx={{ borderRadius: '12px', fontSize: '0.875rem' }}
+                        >
+                          {STATUS_OPTIONS.map((statusOption) => (
+                            <MenuItem key={statusOption} value={statusOption}>
+                              {statusOption}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2">

@@ -10,7 +10,7 @@ const dmyFormatter = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
 });
 
-const monthDayFormatter = new Intl.DateTimeFormat('en-SG', {
+const monthDayFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: '2-digit',
 });

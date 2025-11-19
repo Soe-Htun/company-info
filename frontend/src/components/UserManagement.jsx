@@ -15,6 +15,7 @@ export function UserManagement() {
   const [success, setSuccess] = useState(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const loadUsers = () => {
     if (!token) return;
@@ -45,6 +46,7 @@ export function UserManagement() {
     setForm({ username: user.username, password: '', role: user.role || 'admin' });
     setError(null);
     setSuccess(null);
+    setFieldErrors({});
   };
 
   const resetForm = () => {
@@ -52,6 +54,7 @@ export function UserManagement() {
     setForm({ username: '', password: '', role: 'admin' });
     setError(null);
     setSuccess(null);
+    setFieldErrors({});
   };
 
   const handleSubmit = (event) => {
@@ -59,8 +62,13 @@ export function UserManagement() {
     setSaving(true);
     setError(null);
     setSuccess(null);
+    setFieldErrors({});
     const isCreate = !editingId;
     if (isCreate && (!form.username || !form.password)) {
+      setFieldErrors({
+        ...(form.username ? {} : { username: 'Username is required' }),
+        ...(form.password ? {} : { password: 'Password is required' }),
+      });
       setError('Username and password are required');
       setSaving(false);
       return;
@@ -96,6 +104,7 @@ export function UserManagement() {
     setSaving(true);
     setError(null);
     setSuccess(null);
+    setFieldErrors({});
     request({ path: `/api/users/${user.id}`, method: 'DELETE', token })
       .then(() => {
         setSuccess(`Deleted user ${user.username}`);
@@ -143,29 +152,40 @@ export function UserManagement() {
       <form className="grid gap-4 md:grid-cols-3" onSubmit={handleSubmit}>
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="user-username">
-            Username
+            Username <span className="font-semibold text-rose-500">*</span>
           </label>
           <input
             id="user-username"
             type="text"
             value={form.username}
             onChange={(event) => setForm((prev) => ({ ...prev, username: event.target.value }))}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
+            className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+              fieldErrors.username
+                ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
+                : 'border-slate-200 focus:border-brand-accent focus:ring-brand-soft'
+            }`}
             placeholder="admin@example"
           />
+          {fieldErrors.username ? <p className="mt-1 text-xs text-rose-600">{fieldErrors.username}</p> : null}
         </div>
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="user-password">
-            Password {editingId ? <span className="text-xs text-slate-400">(leave blank to keep)</span> : null}
+            Password <span className="font-semibold text-rose-500">*</span>{' '}
+            {editingId ? <span className="text-xs text-slate-400">(leave blank to keep)</span> : null}
           </label>
           <input
             id="user-password"
             type="password"
             value={form.password}
             onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
+            className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+              fieldErrors.password
+                ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
+                : 'border-slate-200 focus:border-brand-accent focus:ring-brand-soft'
+            }`}
             placeholder="StrongPassword"
           />
+          {fieldErrors.password ? <p className="mt-1 text-xs text-rose-600">{fieldErrors.password}</p> : null}
         </div>
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="user-role">
@@ -191,7 +211,7 @@ export function UserManagement() {
         </div>
       </form>
 
-      {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+      {error && !Object.keys(fieldErrors).length ? <p className="text-sm text-rose-600">{error}</p> : null}
       {success ? <p className="text-sm text-emerald-600">{success}</p> : null}
 
       <div>

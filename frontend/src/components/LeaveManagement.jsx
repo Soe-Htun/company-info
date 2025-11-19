@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
 import { toast } from 'react-toastify';
@@ -25,7 +26,6 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
   const [form, setForm] = useState({ employeeId: '', leaveDate: dayjs().format(ISO_DATE_FORMAT) });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [leaveInput, setLeaveInput] = useState(dayjs().format(ISO_DATE_FORMAT));
 
   const employeeLookup = useMemo(() => {
     return employeeOptions.reduce((acc, item) => {
@@ -50,6 +50,39 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
     return value.isValid() ? value.format(ISO_DATE_FORMAT) : '';
   };
 
+  const toDayjsValue = (value) => {
+    if (!value) return null;
+    const parsed = dayjs(value, ISO_DATE_FORMAT, true);
+    return parsed.isValid() ? parsed : null;
+  };
+
+  const textFieldBaseSx = {
+    '& .MuiInputBase-root': {
+      borderRadius: '0.75rem',
+      fontSize: '0.875rem',
+      fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont',
+    },
+    '& .MuiOutlinedInput-notchedOutline': {
+      borderColor: '#e2e8f0',
+    },
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: '#93c5fd',
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: '#2563eb',
+    },
+  };
+
+  const datePickerSlots = {
+    actionBar: { actions: ['clear'] },
+    textField: {
+      fullWidth: true,
+      size: 'small',
+      placeholder: 'DD/MM/YYYY',
+      sx: textFieldBaseSx,
+    },
+  };
+
   const leaveWindow = useMemo(() => {
     const today = new Date();
     const year = today.getFullYear();
@@ -58,17 +91,6 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
     const end = today.getDate() >= 11 ? new Date(year, month + 1, 10) : new Date(year, month, 10);
     return { start: dayjs(start), end: dayjs(end) };
   }, []);
-
-  const leaveDateOptions = useMemo(() => {
-    const opts = [];
-    let cursor = leaveWindow.start;
-    while (cursor.isBefore(leaveWindow.end) || cursor.isSame(leaveWindow.end, 'day')) {
-      const iso = cursor.format(ISO_DATE_FORMAT);
-      opts.push({ value: iso, label: cursor.format(DISPLAY_DATE_FORMAT) });
-      cursor = cursor.add(1, 'day');
-    }
-    return opts;
-  }, [leaveWindow.end, leaveWindow.start]);
 
   const loadEntries = () => {
     if (!token) return;
@@ -130,7 +152,6 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
   const handleEdit = (entry) => {
     setEditingId(entry.id);
     setForm({ employeeId: entry.employeeId, leaveDate: entry.leaveDate });
-    setLeaveInput(entry.leaveDate);
     setFormErrors({});
   };
 
@@ -205,6 +226,8 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
                   margin="dense"
                   error={Boolean(formErrors.employeeId)}
                   helperText={formErrors.employeeId || ' '}
+                  sx={textFieldBaseSx}
+                  FormHelperTextProps={{ sx: { m: 0, mt: 0.5 } }}
                 />
               )}
               disabled={optionsLoading || saving}
@@ -214,35 +237,34 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="leave-date">
               Leave Date <span className="font-semibold text-rose-500">*</span>
             </label>
-            <Autocomplete
-              id="leave-date"
-              options={leaveDateOptions}
-              getOptionLabel={(option) => option.label || ''}
-              isOptionEqualToValue={(option, value) => option.value === value.value}
-              value={leaveDateOptions.find((opt) => opt.value === form.leaveDate) || null}
-              inputValue={leaveInput}
-              onInputChange={(_event, value) => {
-                setLeaveInput(value || '');
-                setForm((prev) => ({ ...prev, leaveDate: value || '' }));
+            <div className='mt-2'>
+              <DatePicker
+              value={toDayjsValue(form.leaveDate)}
+              onChange={(value) =>
+                setForm((prev) => ({
+                  ...prev,
+                  leaveDate: toIsoString(value),
+                }))
+              }
+              format={DISPLAY_DATE_FORMAT}
+              minDate={dayjs()}
+              maxDate={leaveWindow.end}
+              slotProps={{
+                ...datePickerSlots,
+                textField: {
+                  ...datePickerSlots.textField,
+                  helperText: formErrors.leaveDate || ' ',
+                  error: Boolean(formErrors.leaveDate),
+                  inputProps: {
+                    placeholder: 'DD/MM/YYYY',
+                  },
+                  FormHelperTextProps: { sx: { m: 0, mt: 0.5 } },
+                },
               }}
-              onChange={(_event, value) => {
-                setLeaveInput(value?.value || '');
-                setForm((prev) => ({ ...prev, leaveDate: value?.value || '' }));
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  placeholder="YYYY-MM-DD or pick"
-                  size="small"
-                  margin="dense"
-                  error={Boolean(formErrors.leaveDate)}
-                  helperText={formErrors.leaveDate || ' '}
-                />
-              )}
               disabled={saving}
-              freeSolo
             />
-            {formErrors.leaveDate ? <p className="mt-1 text-xs text-rose-600">{formErrors.leaveDate}</p> : null}
+            {/* {formErrors.leaveDate ? <p className="mt-1 text-xs text-rose-600">{formErrors.leaveDate}</p> : null} */}
+            </div>
           </div>
         </div>
         <div className="flex gap-3">
@@ -264,7 +286,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
             </button>
           )}
         </div>
-        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+        {error && !Object.keys(formErrors).length ? <p className="text-sm text-rose-600">{error}</p> : null}
       </form>
 
       <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">

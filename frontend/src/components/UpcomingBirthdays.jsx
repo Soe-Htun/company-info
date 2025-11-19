@@ -19,7 +19,7 @@ export function UpcomingBirthdays({ items, onSelect }) {
           {todays.map((item) => (
             <div
               key={`today-${item.id}`}
-              className="flex items-center justify-between rounded-xl border border-amber-100 bg-brand-soft px-3 py-2"
+              className="flex items-center justify-between rounded-xl border border-brand-soft bg-brand-soft px-3 py-2"
               role={onSelect ? 'button' : undefined}
               tabIndex={onSelect ? 0 : undefined}
               onClick={() => onSelect?.(item.id)}

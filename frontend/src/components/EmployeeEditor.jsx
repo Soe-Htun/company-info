@@ -303,7 +303,11 @@ export function EmployeeEditor({
                 slotProps={getDatePickerSlots('birthday')}
               />
             </div>
-            {localErrors.birthday ? <p className="mt-1 text-xs text-rose-600">{localErrors.birthday}</p> : null}
+            {/* {localErrors.birthday ? (
+              <p className="mt-1 text-xs text-rose-600">{localErrors.birthday}</p>
+            ) : fieldErrors.birthday ? (
+              <p className="mt-1 text-xs text-rose-600">{fieldErrors.birthday}</p>
+            ) : null} */}
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-hire-date">
