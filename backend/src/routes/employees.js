@@ -113,13 +113,18 @@ async function hasLeaveOnDate(employeeId, date) {
   return rows.length > 0;
 }
 
-async function assertCanMarkLeaveOnDate(employeeId, leaveDate) {
+async function assertCanMarkLeaveOnDate(employeeId, leaveDate, { excludeLogId } = {}) {
   const targetDate = startOfDay(leaveDate);
   const { start, end } = getLeavePeriodFor(targetDate);
 
+  const periodParams = [employeeId, formatDateOnly(start), formatDateOnly(end)];
+  const periodExclusion = excludeLogId ? ' AND id <> ?' : '';
+  if (excludeLogId) {
+    periodParams.push(excludeLogId);
+  }
   const [[{ periodCount = 0 } = {}]] = await pool.execute(
-    'SELECT COUNT(*) AS periodCount FROM employee_leave_log WHERE employee_id = ? AND leave_date BETWEEN ? AND ?',
-    [employeeId, formatDateOnly(start), formatDateOnly(end)],
+    `SELECT COUNT(*) AS periodCount FROM employee_leave_log WHERE employee_id = ? AND leave_date BETWEEN ? AND ?${periodExclusion}`,
+    periodParams,
   );
   if (periodCount >= LEAVE_MAX_PER_PERIOD) {
     const error = new Error('Leave limit reached for this period (max 4 days)');
@@ -127,8 +132,16 @@ async function assertCanMarkLeaveOnDate(employeeId, leaveDate) {
     throw error;
   }
 
-  const alreadyOnDate = await hasLeaveOnDate(employeeId, targetDate);
-  if (alreadyOnDate) {
+  const duplicateParams = [employeeId, formatDateOnly(targetDate)];
+  const duplicateExclusion = excludeLogId ? ' AND id <> ?' : '';
+  if (excludeLogId) {
+    duplicateParams.push(excludeLogId);
+  }
+  const [alreadyOnDate] = await pool.execute(
+    `SELECT 1 FROM employee_leave_log WHERE employee_id = ? AND leave_date = ?${duplicateExclusion} LIMIT 1`,
+    duplicateParams,
+  );
+  if (alreadyOnDate.length) {
     const error = new Error('Already marked On Leave for this date');
     error.status = 400;
     throw error;
@@ -145,12 +158,27 @@ async function recordLeaveForDate(employeeId, leaveDate) {
 async function refreshLeaveStatuses() {
   await pool.execute(
     `UPDATE employees e
+     JOIN employee_leave_log l
+       ON l.employee_id = e.id
+      AND l.leave_date = CURDATE()
+     SET e.status = 'On Leave'
+     WHERE e.status <> 'On Leave'`,
+  );
+
+  await pool.execute(
+    `UPDATE employees e
      SET e.status = 'Active'
      WHERE e.status = 'On Leave'
        AND NOT EXISTS (
          SELECT 1 FROM employee_leave_log l WHERE l.employee_id = e.id AND l.leave_date = CURDATE()
        )`,
   );
+}
+
+async function cleanupOldLeaveLogs() {
+  const today = new Date();
+  const { start } = getLeavePeriodFor(today);
+  await pool.execute('DELETE FROM employee_leave_log WHERE leave_date < ?', [formatDateOnly(start)]);
 }
 
 function buildEmployeePayload(body = {}, { isCreate = false } = {}) {
@@ -223,6 +251,14 @@ function buildIdentifierWhere(identifier) {
   }
   return { clause: 'id = ?', value: numeric };
 }
+
+const mapLeaveRow = (row) => ({
+  id: row.id,
+  employeeId: row.employee_id,
+  employeeName: row.name,
+  department: row.department,
+  leaveDate: formatDate(row.leave_date),
+});
 
 async function assertUniqueNameInDepartment(name, department, excludeId = null) {
   if ((!name && name !== '') || (!department && department !== '')) return;
@@ -331,6 +367,15 @@ router.get('/departments', async (_req, res, next) => {
   }
 });
 
+router.get('/options', async (_req, res, next) => {
+  try {
+    const [rows] = await pool.execute('SELECT id, name, department FROM employees ORDER BY name ASC');
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/stats', async (_req, res, next) => {
   try {
     await refreshLeaveStatuses();
@@ -400,6 +445,120 @@ router.get('/stats', async (_req, res, next) => {
   }
 });
 
+router.get('/leave', async (_req, res, next) => {
+  try {
+    await cleanupOldLeaveLogs();
+    await refreshLeaveStatuses();
+    const today = new Date();
+    const { start, end } = getLeavePeriodFor(today);
+    const [rows] = await pool.execute(
+      `SELECT l.id, l.employee_id, l.leave_date, e.name, e.department
+       FROM employee_leave_log l
+       JOIN employees e ON e.id = l.employee_id
+       WHERE l.leave_date BETWEEN ? AND ?
+       ORDER BY l.leave_date DESC, l.id DESC`,
+      [formatDateOnly(start), formatDateOnly(end)],
+    );
+    res.json(rows.map(mapLeaveRow));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/leave', async (req, res, next) => {
+  try {
+    const employeeId = Number(req.body.employeeId);
+    const leaveDate = parseLeaveDate(req.body.leaveDate);
+
+    if (!Number.isInteger(employeeId)) {
+      return res.status(400).json({ message: 'A valid employee is required' });
+    }
+
+    const employee = await fetchEmployeeBy({ clause: 'id = ?', value: employeeId });
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    await assertCanMarkLeaveOnDate(employeeId, leaveDate);
+    await recordLeaveForDate(employeeId, leaveDate);
+
+    const [[row]] = await pool.execute(
+      `SELECT l.id, l.employee_id, l.leave_date, e.name, e.department
+       FROM employee_leave_log l
+       JOIN employees e ON e.id = l.employee_id
+       WHERE l.employee_id = ? AND l.leave_date = ?
+       LIMIT 1`,
+      [employeeId, formatDateOnly(leaveDate)],
+    );
+    await refreshLeaveStatuses();
+    return res.status(201).json(mapLeaveRow(row));
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.put('/leave/:id', async (req, res, next) => {
+  try {
+    const identifier = buildIdentifierWhere(req.params.id);
+    const [existingRows] = await pool.execute(
+      `SELECT l.id, l.employee_id, l.leave_date, e.name, e.department
+       FROM employee_leave_log l
+       JOIN employees e ON e.id = l.employee_id
+       WHERE l.id = ?`,
+      [identifier.value],
+    );
+    if (!existingRows.length) {
+      return res.status(404).json({ message: 'Leave entry not found' });
+    }
+    const existing = existingRows[0];
+    const existingLeaveDate = startOfDay(new Date(existing.leave_date));
+
+    const nextEmployeeId = Number.isInteger(Number(req.body.employeeId))
+      ? Number(req.body.employeeId)
+      : existing.employee_id;
+    const nextLeaveDate = req.body.leaveDate ? parseLeaveDate(req.body.leaveDate) : existingLeaveDate;
+
+    const employee = await fetchEmployeeBy({ clause: 'id = ?', value: nextEmployeeId });
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    await assertCanMarkLeaveOnDate(nextEmployeeId, nextLeaveDate, { excludeLogId: existing.id });
+    await pool.execute('UPDATE employee_leave_log SET employee_id = ?, leave_date = ? WHERE id = ?', [
+      nextEmployeeId,
+      formatDateOnly(nextLeaveDate),
+      identifier.value,
+    ]);
+    await refreshLeaveStatuses();
+    const updated = await fetchEmployeeBy({ clause: 'id = ?', value: nextEmployeeId });
+    return res.json(
+      mapLeaveRow({
+        id: existing.id,
+        employee_id: nextEmployeeId,
+        leave_date: formatDateOnly(nextLeaveDate),
+        name: updated.name,
+        department: updated.department,
+      }),
+    );
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.delete('/leave/:id', async (req, res, next) => {
+  try {
+    const identifier = buildIdentifierWhere(req.params.id);
+    const [result] = await pool.execute('DELETE FROM employee_leave_log WHERE id = ?', [identifier.value]);
+    if (!result.affectedRows) {
+      return res.status(404).json({ message: 'Leave entry not found' });
+    }
+    await refreshLeaveStatuses();
+    return res.status(204).send();
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.post('/', async (req, res, next) => {
   try {
     await refreshLeaveStatuses();
@@ -409,12 +568,6 @@ router.post('/', async (req, res, next) => {
     const placeholders = columns.map(() => '?').join(', ');
     const query = `INSERT INTO employees (${columns.join(', ')}) VALUES (${placeholders})`;
     const [result] = await pool.execute(query, values);
-    const requestedStatus = Object.prototype.hasOwnProperty.call(req.body, 'status') ? req.body.status : 'Active';
-    if (requestedStatus === 'On Leave') {
-      const leaveDate = parseLeaveDate(req.body.leaveDate);
-      await assertCanMarkLeaveOnDate(result.insertId, leaveDate);
-      await recordLeaveForDate(result.insertId, leaveDate);
-    }
     const employee = await fetchEmployeeBy({ clause: 'id = ?', value: result.insertId });
     res.status(201).json(employee);
   } catch (err) {
@@ -453,18 +606,6 @@ router.put('/:id', async (req, res, next) => {
         ? req.body.department
         : existingEmployee.department;
       await assertUniqueNameInDepartment(nameToCheck, departmentToCheck, identifier.value);
-    }
-
-    const nextStatus = Object.prototype.hasOwnProperty.call(req.body, 'status')
-      ? req.body.status
-      : existingEmployee.status;
-    if (nextStatus === 'On Leave') {
-      const leaveDate = parseLeaveDate(req.body.leaveDate);
-      const alreadyLeaveDate = await hasLeaveOnDate(identifier.value, leaveDate);
-      if (!alreadyLeaveDate) {
-        await assertCanMarkLeaveOnDate(identifier.value, leaveDate);
-        await recordLeaveForDate(identifier.value, leaveDate);
-      }
     }
 
     const query = `UPDATE employees SET ${setClause} WHERE ${identifier.clause}`;

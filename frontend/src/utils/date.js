@@ -22,6 +22,27 @@ const safeDate = (value) => {
   return date;
 };
 
+const calculateAgeParts = (birthday) => {
+  const birthDate = safeDate(birthday);
+  if (!birthDate) return null;
+
+  const today = new Date();
+  let years = today.getFullYear() - birthDate.getFullYear();
+  let months = today.getMonth() - birthDate.getMonth();
+  const dayDiff = today.getDate() - birthDate.getDate();
+
+  if (dayDiff < 0) {
+    months -= 1;
+  }
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  return { years, months };
+};
+
 export const formatDateNamedMonth = (value) => {
   const date = safeDate(value);
   if (!date) return '—';
@@ -44,4 +65,46 @@ export const formatMonthDay = (value) => {
   const date = safeDate(value);
   if (!date) return '—';
   return monthDayFormatter.format(date);
+};
+
+export const formatAgeDuration = (birthday, { blankIfInvalid = false, style = 'long' } = {}) => {
+  const fallback = blankIfInvalid ? '' : '—';
+  const age = calculateAgeParts(birthday);
+  if (!age) return fallback;
+  const { years, months } = age;
+
+  const parts = [];
+  if (years > 0) {
+    const yearToken = `${years} year${years === 1 ? '' : 's'}`;
+    parts.push(style === 'long' ? yearToken : `${years}y`);
+  }
+  if (months > 0) {
+    const monthToken = `${months} month${months === 1 ? '' : 's'}`;
+    parts.push(style === 'long' ? monthToken : `${months}m`);
+  }
+
+  if (!parts.length) {
+    return fallback;
+  }
+
+  if (style === 'medium') {
+    return parts.join(' ');
+  }
+
+  if (style === 'compact') {
+    return parts.join('');
+  }
+
+  if (style === 'short') {
+    return parts.join(' ');
+  }
+
+  return parts.join(' and ');
+};
+
+export const getRoundedAgeYears = (birthday) => {
+  const age = calculateAgeParts(birthday);
+  if (!age) return null;
+  const { years, months } = age;
+  return months > 6 ? years + 1 : years;
 };

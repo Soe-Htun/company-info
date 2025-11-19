@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { buildQuery, request } from '../api/client';
+import { formatAgeDuration, getRoundedAgeYears } from '../utils/date';
 import { EmployeeEditor } from '../components/EmployeeEditor';
+import { LeaveManagement } from '../components/LeaveManagement';
 import { EmployeeTable } from '../components/EmployeeTable';
 import { Pagination } from '../components/Pagination';
 import { StatCard } from '../components/StatCard';
@@ -16,6 +18,8 @@ import { useDebounce } from '../hooks/useDebounce';
 import { UserMenu } from '../components/UserMenu';
 import { ActiveFilters } from '../components/ActiveFilters';
 import { toast } from 'react-toastify';
+import Autocomplete from '@mui/material/Autocomplete';
+import TextField from '@mui/material/TextField';
 
 const SORT_COLUMN_MAP = {
   name: 'name',
@@ -61,6 +65,7 @@ export default function Dashboard() {
   const [editorBusy, setEditorBusy] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [employeeSearchOptions, setEmployeeSearchOptions] = useState([]);
   const navigate = useNavigate();
   const toastOptions = {};
 
@@ -68,22 +73,33 @@ export default function Dashboard() {
 
   const exportCsv = () => {
     if (!employees.length) return;
-    const headers = ['Name', 'Birthday', 'Start Date', 'Address', 'Age', 'Department', 'Status'];
-    const rows = employees.map((employee) => [
-      employee.name,
-      formatDateDmy(employee.birthday),
-      formatDateDmy(employee.hireDate),
-      employee.address,
-      employee.age,
-      employee.department,
-      employee.status || '',
-    ]);
-    const csv = [headers, ...rows].map((cells) => cells.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const headers = ['ID', 'Name', 'Department', 'Birthday', 'Gender', 'Age', 'Phone'];
+    const baseIndex = ((meta?.page || page || 1) - 1) * (meta?.pageSize || filters.pageSize || 10);
+    const rows = employees.map((employee, idx) => {
+      const roundedAge = getRoundedAgeYears(employee.birthday);
+      return [
+        baseIndex + idx + 1,
+        employee.name,
+        employee.department,
+        formatDateDmy(employee.birthday),
+        employee.gender || '',
+        roundedAge == null ? '' : roundedAge,
+        employee.phone || '',
+      ];
+    });
+    const escapeCell = (cell) => {
+      if (cell === null || cell === undefined) return '""';
+      return `"${String(cell).replace(/"/g, '""')}"`;
+    };
+    const csv = [headers, ...rows].map((cells) => cells.map(escapeCell).join(',')).join('\n');
+    const today = new Date();
+    const monthLabel = today.toLocaleString('en-US', { month: 'short' });
+    const dayLabel = String(today.getDate()).padStart(2, '0');
+    const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `employees-page-${page}.csv`);
+    link.setAttribute('download', `employees-page-${page}-date-${monthLabel}-${dayLabel}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -143,6 +159,16 @@ export default function Dashboard() {
       .catch((err) => {
         if (err.status === 401) return;
       });
+  }, [token, refreshIndex]);
+
+  useEffect(() => {
+    if (!token) return;
+    request({ path: '/api/employees/options', token })
+      .then((list) => {
+        const names = Array.from(new Set((list || []).map((item) => item?.name).filter(Boolean)));
+        setEmployeeSearchOptions(names);
+      })
+      .catch(() => {});
   }, [token, refreshIndex]);
 
   useEffect(() => {
@@ -307,6 +333,15 @@ export default function Dashboard() {
             </button>
             <button
               type="button"
+              onClick={() => setActivePanel('leave')}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                activePanel === 'leave' ? 'bg-brand-accent text-white' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Leave Management
+            </button>
+            <button
+              type="button"
               onClick={() => setActivePanel('users')}
               className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
                 activePanel === 'users' ? 'bg-brand-accent text-white' : 'text-slate-600 hover:bg-slate-100'
@@ -316,7 +351,7 @@ export default function Dashboard() {
             </button>
           </div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-            {activePanel === 'employees' ? 'directory view' : 'access control'}
+            {activePanel === 'employees' ? 'directory view' : activePanel === 'leave' ? 'leave management' : 'access control'}
           </p>
         </div>
 
@@ -344,32 +379,28 @@ export default function Dashboard() {
                     <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="search">
                       Search
                     </label>
-                    <div className="mt-1 relative">
-                      <input
-                        id="search"
-                        type="text"
-                        value={filters.search}
-                        onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-                        placeholder="Search Name"
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 pr-10 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
+                    <div className="mt-1">
+                      <Autocomplete
+                        freeSolo
+                        options={employeeSearchOptions}
+                        inputValue={filters.search}
+                        onInputChange={(_event, value) => setFilters((prev) => ({ ...prev, search: value || '' }))}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            placeholder="Search Name"
+                            size="small"
+                            margin="dense"
+                            InputProps={{
+                              ...params.InputProps,
+                              style: {
+                                borderRadius: '0.75rem',
+                                fontSize: '0.875rem',
+                              },
+                            }}
+                          />
+                        )}
                       />
-                      {filters.search ? (
-                        <button
-                          type="button"
-                          onClick={() => setFilters((prev) => ({ ...prev, search: '' }))}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-slate-100 p-1 text-slate-500 transition hover:text-slate-700"
-                          aria-label="Clear search"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                            <path
-                              d="M6 6l12 12M6 18 18 6"
-                              stroke="currentColor"
-                              strokeWidth="1.5"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                        </button>
-                      ) : null}
                     </div>
                   </div>
                   <div className="min-w-[160px]">
@@ -491,12 +522,23 @@ export default function Dashboard() {
                   </ul>
                 )}
               </div>
-              <UpcomingBirthdays items={stats?.upcomingBirthdays} />
+              <UpcomingBirthdays
+                items={stats?.upcomingBirthdays}
+                onSelect={(id) => {
+                  if (id) navigate(`/details/${id}`);
+                }}
+              />
               {(onLeaveToday.loading || onLeaveToday.total > 0) && (
                 <OnLeaveToday items={onLeaveToday.items} total={onLeaveToday.total} loading={onLeaveToday.loading} />
               )}
             </section>
           </>
+        ) : activePanel === 'leave' ? (
+          <LeaveManagement
+            token={token}
+            onChanged={() => setRefreshIndex((prev) => prev + 1)}
+            onGoToEmployee={(id) => navigate(`/details/${id}`)}
+          />
         ) : (
           <UserManagement />
         )}

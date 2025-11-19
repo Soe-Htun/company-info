@@ -3,35 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { request } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { formatDateDmy, formatDateNamedMonth } from '../utils/date';
-
-const formatAge = (birthday) => {
-  if (!birthday) return '—';
-  const birthDate = new Date(birthday);
-  if (Number.isNaN(birthDate.getTime())) return '—';
-  const today = new Date();
-  let years = today.getFullYear() - birthDate.getFullYear();
-  let months = today.getMonth() - birthDate.getMonth();
-  const dayDiff = today.getDate() - birthDate.getDate();
-
-  if (dayDiff < 0) {
-    months -= 1;
-  }
-
-  if (months < 0) {
-    years -= 1;
-    months += 12;
-  }
-
-  const parts = [];
-  if (years > 0) {
-    parts.push(`${years} year${years === 1 ? '' : 's'}`);
-  }
-  if (months > 0) {
-    parts.push(`${months} month${months === 1 ? '' : 's'}`);
-  }
-  return parts.join(' and ');
-};
+import { formatAgeDuration, formatDateDmy, formatDateNamedMonth } from '../utils/date';
 
 export default function EmployeeDetail() {
   const { id } = useParams();
@@ -59,7 +31,7 @@ export default function EmployeeDetail() {
     () => [
       { label: 'Birthday', value: formatDateNamedMonth(employee?.birthday) },
       { label: 'Start Date', value: formatDateDmy(employee?.hireDate) },
-      { label: 'Age', value: formatAge(employee?.birthday) },
+      { label: 'Age', value: formatAgeDuration(employee?.birthday) },
       { label: 'Gender', value: employee?.gender },
     ],
     [employee],

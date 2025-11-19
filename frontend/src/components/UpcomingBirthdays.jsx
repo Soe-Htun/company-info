@@ -1,6 +1,6 @@
 import { formatMonthDay } from '../utils/date';
 
-export function UpcomingBirthdays({ items }) {
+export function UpcomingBirthdays({ items, onSelect }) {
   const today = new Date();
   const isToday = (value) => {
     const date = new Date(value);
@@ -19,15 +19,24 @@ export function UpcomingBirthdays({ items }) {
           {todays.map((item) => (
             <div
               key={`today-${item.id}`}
-              className="flex items-center justify-between rounded-xl border border-amber-100 bg-amber-50 px-3 py-2"
+              className="flex items-center justify-between rounded-xl border border-amber-100 bg-brand-soft px-3 py-2"
+              role={onSelect ? 'button' : undefined}
+              tabIndex={onSelect ? 0 : undefined}
+              onClick={() => onSelect?.(item.id)}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && onSelect) {
+                  e.preventDefault();
+                  onSelect(item.id);
+                }
+              }}
             >
               <div className="flex items-center gap-2">
                 <span className="text-lg" aria-hidden="true">
                   🎂
                 </span>
-                <p className="text-sm font-semibold text-amber-700">Today is {item.name}&apos;s Birthday</p>
+                <p className="text-sm font-semibold text-brand-accent">Today is {item.name}&apos;s Birthday</p>
               </div>
-              <span className="text-xs font-semibold uppercase tracking-wide text-amber-600">Celebrate</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-brand-accent">Celebrate</span>
             </div>
           ))}
         </div>
@@ -36,7 +45,19 @@ export function UpcomingBirthdays({ items }) {
       {upcoming.length ? (
         <ul className={`mt-4 space-y-3 ${todays.length ? 'pt-2 border-t border-slate-100' : ''}`}>
           {upcoming.map((item) => (
-            <li key={item.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2">
+            <li
+              key={item.id}
+              className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-100 px-3 py-2 hover:bg-brand-soft/40"
+              onClick={() => onSelect?.(item.id)}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && onSelect) {
+                  e.preventDefault();
+                  onSelect(item.id);
+                }
+              }}
+              role={onSelect ? 'button' : undefined}
+              tabIndex={onSelect ? 0 : undefined}
+            >
               <div>
                 <p className="text-sm font-semibold text-slate-800">{item.name}</p>
                 <p className="text-xs text-slate-500">

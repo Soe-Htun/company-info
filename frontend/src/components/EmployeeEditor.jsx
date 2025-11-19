@@ -4,7 +4,6 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
-const STATUS_OPTIONS = ['Active', 'On Leave'];
 const GENDER_OPTIONS = ['Male', 'Female'];
 const ISO_DATE_FORMAT = 'YYYY-MM-DD';
 const DISPLAY_DATE_FORMAT = 'DD/MM/YYYY';
@@ -33,11 +32,9 @@ const sanitizeDepartment = (value) => {
 const EMPTY_FORM = {
   name: '',
   department: DEFAULT_DEPARTMENT,
-  status: 'Active',
   gender: 'Female',
   birthday: '',
   hireDate: '',
-  leaveDate: '',
   address: '',
   phone: '',
 };
@@ -47,11 +44,9 @@ function toForm(employee) {
   return {
     name: employee.name || '',
     department: sanitizeDepartment(employee.department),
-    status: employee.status || 'Active',
     gender: employee.gender || 'Female',
     birthday: employee.birthday || '',
     hireDate: employee.hireDate || '',
-    leaveDate: employee.status === 'On Leave' ? ISO_DATE_FORMAT && dayjs().format(ISO_DATE_FORMAT) : '',
     address: employee.address || '',
     phone: employee.phone || '',
   };
@@ -72,7 +67,6 @@ export function EmployeeEditor({
   const [form, setForm] = useState(toForm(employee));
   const [departmentsTouched, setDepartmentsTouched] = useState(false);
   const [localErrors, setLocalErrors] = useState({});
-  const isOnLeave = form.status === 'On Leave';
   const getInputClasses = (field) => {
     const hasError = Boolean(fieldErrors[field] || localErrors[field]);
     const base =
@@ -112,18 +106,7 @@ export function EmployeeEditor({
       delete next[name];
       return next;
     });
-    setForm((prev) => {
-      if (name === 'status') {
-        const nextStatus = value;
-        return {
-          ...prev,
-          status: nextStatus,
-          leaveDate:
-            nextStatus === 'On Leave' ? (prev.leaveDate || dayjs().format(ISO_DATE_FORMAT)) : '',
-        };
-      }
-      return { ...prev, [name]: value };
-    });
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (event) => {
@@ -138,13 +121,6 @@ export function EmployeeEditor({
     if (!form.birthday) {
       nextLocalErrors.birthday = 'Birthday is required';
     }
-    const leaveDateValue =
-      isOnLeave
-        ? form.leaveDate || dayjs().format(ISO_DATE_FORMAT)
-        : undefined;
-    if (isOnLeave && !leaveDateValue) {
-      nextLocalErrors.leaveDate = 'Leave date is required';
-    }
 
     if (Object.keys(nextLocalErrors).length) {
       setLocalErrors(nextLocalErrors);
@@ -155,11 +131,9 @@ export function EmployeeEditor({
     const payload = {
       name: form.name.trim(),
       department: form.department.trim(),
-      status: form.status || 'Active',
       gender: form.gender || 'Male',
       birthday: form.birthday || undefined,
       hireDate: form.hireDate || undefined,
-      leaveDate: leaveDateValue,
       address: form.address.trim(),
       phone: form.phone ? form.phone.replace(/\D/g, '') : '',
     };
@@ -348,50 +322,6 @@ export function EmployeeEditor({
               />
             </div>
           </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className='pb-8'>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {['Active', 'On Leave'].map((statusOption) => {
-                const isActive = form.status === statusOption;
-                return (
-                  <button
-                    key={statusOption}
-                    type="button"
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
-                        ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
-                        : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
-                      }`}
-                    onClick={() => handleChange({ target: { name: 'status', value: statusOption } })}
-                  >
-                    {statusOption}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          {isOnLeave ? (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Leave Date <span className="font-semibold text-rose-500">*</span>
-              </p>
-              <div className="mt-1">
-                <DatePicker
-                  value={toDayjsValue(form.leaveDate) || TODAY}
-                  onChange={handleDatePickerChange('leaveDate')}
-                  format={DISPLAY_DATE_FORMAT}
-                  slotProps={getDatePickerSlots('leaveDate', true)}
-                  minDate={TODAY}
-                  disableFuture={false}
-                />
-              </div>
-              {fieldErrors.leaveDate || localErrors.leaveDate ? (
-                <p className="mt-1 text-xs text-rose-600">{fieldErrors.leaveDate || localErrors.leaveDate}</p>
-              ) : null}
-            </div>
-          ) : null}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
