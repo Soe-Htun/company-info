@@ -71,7 +71,7 @@ export function UpcomingBirthdays({ items, onSelect }) {
           ))}
         </ul>
       ) : !todays.length ? (
-        <p className="mt-2 text-sm text-slate-500">No birthdays within the next 30 days.</p>
+        <p className="mt-2 text-sm text-slate-500">No birthdays within the next 20 days.</p>
       ) : null}
     </div>
   );

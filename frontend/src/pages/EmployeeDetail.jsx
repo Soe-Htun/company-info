@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { request } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { formatAgeDuration, formatDateDmy, formatDateNamedMonth } from '../utils/date';
+import { UserMenu } from '../components/UserMenu';
 
 export default function EmployeeDetail() {
   const { id } = useParams();
@@ -59,18 +60,7 @@ export default function EmployeeDetail() {
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-accent">employee info</p>
             <h1 className="text-xl font-semibold text-slate-900">99 Company</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-sm font-semibold text-slate-900">{user?.username}</p>
-            </div>
-            <button
-              type="button"
-              onClick={logout}
-              className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:bg-slate-50"
-            >
-              Logout
-            </button>
-          </div>
+          <UserMenu user={user} onLogout={logout} />
         </div>
       </header>
 

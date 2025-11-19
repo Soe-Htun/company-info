@@ -417,9 +417,9 @@ router.get('/stats', async (_req, res, next) => {
           daysUntil,
         };
       })
-      .filter((row) => row.daysUntil <= 30)
+      .filter((row) => row.daysUntil <= 20)
       .sort((a, b) => a.daysUntil - b.daysUntil)
-      .slice(0, 5);
+      .slice(0, 6);
     const recentHires = recentHireRows.map((row) => {
       const hireDate = new Date(row.hire_date);
       const daysSince = Math.floor((todayMidnight - hireDate) / (1000 * 60 * 60 * 24));
