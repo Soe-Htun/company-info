@@ -210,6 +210,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
                   value={dayjs(form.leaveDate, ISO_DATE_FORMAT)}
                   onChange={(value) => setForm((prev) => ({ ...prev, leaveDate: value ? value.format(ISO_DATE_FORMAT) : '' }))}
                   format={DISPLAY_DATE_FORMAT}
+                  minDate={dayjs()}
                   slotProps={{
                     textField: {
                       size: 'small',
