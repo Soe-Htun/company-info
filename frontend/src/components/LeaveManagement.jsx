@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
@@ -13,84 +13,39 @@ import { Pagination } from './Pagination';
 
 const ISO_DATE_FORMAT = 'YYYY-MM-DD';
 const DISPLAY_DATE_FORMAT = 'DD/MM/YYYY';
+const EMPTY_FORM = {
+  employeeIds: [],
+  leaveDate: dayjs().format(ISO_DATE_FORMAT),
+};
 
 export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
   const [entries, setEntries] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [formErrors, setFormErrors] = useState({});
-  const [employeeOptions, setEmployeeOptions] = useState([]);
-  const [optionsLoading, setOptionsLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ employeeId: '', leaveDate: dayjs().format(ISO_DATE_FORMAT) });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const employeeLookup = useMemo(() => {
-    return employeeOptions.reduce((acc, item) => {
-      if (item?.id) acc[item.id] = item;
-      return acc;
-    }, {});
-  }, [employeeOptions]);
-
-  const selectedEmployee = useMemo(() => {
-    if (!form.employeeId) return null;
-    return employeeOptions.find((emp) => String(emp.id) === String(form.employeeId)) || null;
-  }, [employeeOptions, form.employeeId]);
-
   const resetForm = () => {
-    setForm({ employeeId: '', leaveDate: dayjs().format(ISO_DATE_FORMAT) });
+    setForm({ ...EMPTY_FORM });
     setEditingId(null);
     setFormErrors({});
   };
 
-  const toIsoString = (value) => {
-    if (!value) return '';
-    return value.isValid() ? value.format(ISO_DATE_FORMAT) : '';
-  };
+  const employeeLookup = useMemo(() => {
+    return employees.reduce((map, item) => {
+      if (item?.id) map[item.id] = item;
+      return map;
+    }, {});
+  }, [employees]);
 
-  const toDayjsValue = (value) => {
-    if (!value) return null;
-    const parsed = dayjs(value, ISO_DATE_FORMAT, true);
-    return parsed.isValid() ? parsed : null;
-  };
-
-  const textFieldBaseSx = {
-    '& .MuiInputBase-root': {
-      borderRadius: '0.75rem',
-      fontSize: '0.875rem',
-      fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont',
-    },
-    '& .MuiOutlinedInput-notchedOutline': {
-      borderColor: '#e2e8f0',
-    },
-    '&:hover .MuiOutlinedInput-notchedOutline': {
-      borderColor: '#93c5fd',
-    },
-    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-      borderColor: '#2563eb',
-    },
-  };
-
-  const datePickerSlots = {
-    actionBar: { actions: ['clear'] },
-    textField: {
-      fullWidth: true,
-      size: 'small',
-      placeholder: 'DD/MM/YYYY',
-      sx: textFieldBaseSx,
-    },
-  };
-
-  const leaveWindow = useMemo(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    const start = today.getDate() >= 11 ? new Date(year, month, 11) : new Date(year, month - 1, 11);
-    const end = today.getDate() >= 11 ? new Date(year, month + 1, 10) : new Date(year, month, 10);
-    return { start: dayjs(start), end: dayjs(end) };
-  }, []);
+  const selectedEmployees = useMemo(() => {
+    return form.employeeIds.map((id) => employees.find((emp) => String(emp.id) === String(id))).filter(Boolean);
+  }, [employees, form.employeeIds]);
 
   const loadEntries = () => {
     if (!token) return;
@@ -104,10 +59,9 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
 
   const loadEmployees = () => {
     if (!token) return;
-    setOptionsLoading(true);
     request({ path: '/api/employees/options', token })
-      .then((data) => setEmployeeOptions(data || []))
-      .finally(() => setOptionsLoading(false));
+      .then((list) => setEmployees(list || []))
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -116,10 +70,19 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
     loadEmployees();
   }, [token]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize, entries.length]);
+
+  const pagedEntries = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return entries.slice(start, start + pageSize);
+  }, [entries, page, pageSize]);
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     const nextErrors = {};
-    if (!form.employeeId) nextErrors.employeeId = 'Employee is required';
+    if (!form.employeeIds.length) nextErrors.employeeIds = 'Select at least one employee';
     if (!form.leaveDate) nextErrors.leaveDate = 'Leave date is required';
     if (Object.keys(nextErrors).length) {
       setFormErrors(nextErrors);
@@ -128,16 +91,23 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
     setFormErrors({});
     setSaving(true);
     try {
-      const payload = { employeeId: Number(form.employeeId), leaveDate: form.leaveDate };
-      const result = editingId
-        ? await request({ path: `/api/employees/leave/${editingId}`, method: 'PUT', body: payload, token })
-        : await request({ path: '/api/employees/leave', method: 'POST', body: payload, token });
       if (editingId) {
-        setEntries((prev) => prev.map((entry) => (entry.id === editingId ? result : entry)));
+        const payload = { employeeId: Number(form.employeeIds[0]), leaveDate: form.leaveDate };
+        const updated = await request({ path: `/api/employees/leave/${editingId}`, method: 'PUT', body: payload, token });
+        setEntries((prev) => prev.map((entry) => (entry.id === editingId ? updated : entry)));
+      } else if (form.employeeIds.length === 1) {
+        const payload = { employeeId: Number(form.employeeIds[0]), leaveDate: form.leaveDate };
+        const created = await request({ path: '/api/employees/leave', method: 'POST', body: payload, token });
+        setEntries((prev) => [created, ...prev]);
       } else {
-        setEntries((prev) => [result, ...prev]);
+        const payload = {
+          employeeIds: form.employeeIds,
+          startDate: form.leaveDate,
+          endDate: form.leaveDate,
+        };
+        await request({ path: '/api/employees/leave/bulk', method: 'POST', body: payload, token });
+        loadEntries();
       }
-      setPage(1);
       toast.success(editingId ? 'Leave updated' : 'Leave added');
       resetForm();
       onChanged?.();
@@ -151,7 +121,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
 
   const handleEdit = (entry) => {
     setEditingId(entry.id);
-    setForm({ employeeId: entry.employeeId, leaveDate: entry.leaveDate });
+    setForm({ employeeIds: [String(entry.employeeId)], leaveDate: entry.leaveDate });
     setFormErrors({});
   };
 
@@ -161,222 +131,210 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
     try {
       await request({ path: `/api/employees/leave/${entry.id}`, method: 'DELETE', token });
       setEntries((prev) => prev.filter((item) => item.id !== entry.id));
-      setPage(1);
       toast.success('Leave deleted');
+      setPage(1);
       onChanged?.();
     } catch (err) {
       setError(err.message || 'Unable to delete leave');
     }
   };
 
-  useEffect(() => {
-    setPage(1);
-  }, [pageSize, entries.length]);
-
-  const pagedEntries = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return entries.slice(start, start + pageSize);
-  }, [entries, page, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil((entries.length || 0) / pageSize));
-  const handlePageSizeChange = (size) => {
-    setPageSize(size);
-    setPage(1);
+  const handleEmployeeChange = (_event, value) => {
+    if (editingId) {
+      const nextValue = Array.isArray(value) ? value[0] : value;
+      setForm((prev) => ({ ...prev, employeeIds: nextValue?.id ? [String(nextValue.id)] : [] }));
+    } else {
+      const list = Array.isArray(value) ? value : value ? [value] : [];
+      setForm((prev) => ({ ...prev, employeeIds: list.map((item) => String(item.id)) }));
+    }
   };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <div className="glass-panel space-y-4 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Leave Management</p>
-        </div>
-        {editingId ? (
-          <button
-            type="button"
-            className="text-sm font-semibold text-brand-accent hover:underline"
-            onClick={resetForm}
-          >
-            Cancel edit
-          </button>
-        ) : null}
-      </div>
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4">
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="md:col-span-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="leave-employee">
-              Employee <span className="font-semibold text-rose-500">*</span>
-            </label>
-            <Autocomplete
-              id="leave-employee"
-              options={employeeOptions}
-              loading={optionsLoading}
-              getOptionLabel={(option) =>
-                option?.name ? `${option.name}${option.department ? ` (${option.department})` : ''}` : ''
-              }
-              isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
-              value={selectedEmployee}
-              onChange={(_event, value) => setForm((prev) => ({ ...prev, employeeId: value?.id || '' }))}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  placeholder="Type to search and select"
-                  size="small"
-                  margin="dense"
-                  error={Boolean(formErrors.employeeId)}
-                  helperText={formErrors.employeeId || ' '}
-                  sx={textFieldBaseSx}
-                  FormHelperTextProps={{ sx: { m: 0, mt: 0.5 } }}
-                />
-              )}
-              disabled={optionsLoading || saving}
-            />
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="leave-date">
-              Leave Date <span className="font-semibold text-rose-500">*</span>
-            </label>
-            <div className='mt-2'>
-              <DatePicker
-              value={toDayjsValue(form.leaveDate)}
-              onChange={(value) =>
-                setForm((prev) => ({
-                  ...prev,
-                  leaveDate: toIsoString(value),
-                }))
-              }
-              format={DISPLAY_DATE_FORMAT}
-              minDate={dayjs()}
-              maxDate={leaveWindow.end}
-              slotProps={{
-                ...datePickerSlots,
-                textField: {
-                  ...datePickerSlots.textField,
-                  helperText: formErrors.leaveDate || ' ',
-                  error: Boolean(formErrors.leaveDate),
-                  inputProps: {
-                    placeholder: 'DD/MM/YYYY',
-                  },
-                  FormHelperTextProps: { sx: { m: 0, mt: 0.5 } },
-                },
-              }}
-              disabled={saving}
-            />
-            {/* {formErrors.leaveDate ? <p className="mt-1 text-xs text-rose-600">{formErrors.leaveDate}</p> : null} */}
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Leave Management</p>
+            <p className="text-xs text-slate-400">Select one or many employees, apply a single date.</p>
+          </div>
+          {editingId ? (
+            <button type="button" className="text-sm font-semibold text-brand-accent hover:underline" onClick={resetForm}>
+              Cancel edit
+            </button>
+          ) : null}
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="leave-employee">
+                Employees <span className="font-semibold text-rose-500">*</span>
+              </label>
+              <Autocomplete
+                id="leave-employee"
+                multiple={!editingId}
+                options={employees}
+                loading={!employees.length && !error}
+                value={editingId ? selectedEmployees[0] || null : selectedEmployees}
+                onChange={handleEmployeeChange}
+                getOptionLabel={(option) =>
+                  option?.name ? `${option.name}${option.department ? ` (${option.department})` : ''}` : ''
+                }
+                isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder={editingId ? 'Select employee' : 'Select one or more employees'}
+                    size="small"
+                    margin="dense"
+                    error={Boolean(formErrors.employeeIds)}
+                    helperText={formErrors.employeeIds || ' '}
+                    sx={{
+                      '& .MuiInputBase-root': {
+                        borderRadius: '0.75rem',
+                        fontSize: '0.875rem',
+                      },
+                    }}
+                    FormHelperTextProps={{ sx: { m: 0, mt: 0.5 } }}
+                  />
+                )}
+                disabled={saving}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="leave-date">
+                Leave Date <span className="font-semibold text-rose-500">*</span>
+              </label>
+              <div className="mt-2">
+                <DatePicker
+                  value={dayjs(form.leaveDate, ISO_DATE_FORMAT)}
+                  onChange={(value) => setForm((prev) => ({ ...prev, leaveDate: value ? value.format(ISO_DATE_FORMAT) : '' }))}
+                  format={DISPLAY_DATE_FORMAT}
+                  slotProps={{
+                    textField: {
+                      size: 'small',
+                      placeholder: 'DD/MM/YYYY',
+                      helperText: formErrors.leaveDate || ' ',
+                      error: Boolean(formErrors.leaveDate),
+                      sx: {
+                        '& .MuiInputBase-root': { borderRadius: '0.75rem', fontSize: '0.875rem' },
+                      },
+                      FormHelperTextProps: { sx: { m: 0, mt: 0.5 } },
+                    },
+                  }}
+                  disabled={saving}
+                />
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-xl bg-brand-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:opacity-60"
-          >
-            {saving ? 'Saving…' : editingId ? 'Update Leave' : 'Add Leave'}
-          </button>
-          {!editingId ? null : (
+          <div className="flex gap-3">
             <button
-              type="button"
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              onClick={resetForm}
+              type="submit"
               disabled={saving}
+              className="rounded-xl bg-brand-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:opacity-60"
             >
-              Cancel
+              {saving ? 'Saving…' : editingId ? 'Update Leave' : 'Add Leave'}
             </button>
-          )}
-        </div>
-        {error && !Object.keys(formErrors).length ? <p className="text-sm text-rose-600">{error}</p> : null}
-      </form>
+            {editingId ? (
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                onClick={resetForm}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+            ) : null}
+          </div>
+        </form>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Employee</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Department
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Leave Date</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                Array.from({ length: 3 }).map((_, idx) => (
-                  <tr key={`leave-loading-${idx}`}>
-                    <td className="px-3 py-3" colSpan={4}>
-                      <div className="h-4 animate-pulse rounded-full bg-slate-200" />
-                    </td>
-                  </tr>
-                ))
-              ) : !entries.length ? (
+        {error && !Object.keys(formErrors).length ? <p className="text-sm text-rose-600">{error}</p> : null}
+
+        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-100 text-sm">
+              <thead className="bg-slate-50">
                 <tr>
-                  <td className="px-3 py-4 text-center text-sm text-slate-500" colSpan={4}>
-                    No leave entries yet.
-                  </td>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Employee</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Department</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Leave Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
                 </tr>
-              ) : (
-                pagedEntries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="px-3 py-3">
-                      <button
-                        type="button"
-                        className="font-semibold text-slate-800 hover:text-brand-accent"
-                        onClick={() => onGoToEmployee?.(entry.employeeId)}
-                      >
-                        {entry.employeeName}
-                      </button>
-                    </td>
-                    <td className="px-3 py-3 text-slate-600">
-                      {entry.department ||
-                        employeeLookup[entry.employeeId]?.department ||
-                        '—'}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-slate-700">{formatDateDmy(entry.leaveDate)}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          className="rounded-full border border-slate-200 p-1 text-slate-500 transition hover:text-brand-accent"
-                          onClick={() => handleEdit(entry)}
-                          disabled={saving}
-                          aria-label="Edit leave"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M13.586 3.586a2 2 0 0 1 2.828 2.828l-.707.707-2.828-2.828.707-.707Z" />
-                            <path d="M14 8.414 11.586 6 4 13.586V16h2.414L14 8.414Z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-rose-200 p-1 text-rose-500 transition hover:text-rose-600"
-                          onClick={() => handleDelete(entry)}
-                          disabled={saving}
-                          aria-label="Delete leave"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M7 2a1 1 0 0 0-1 1v1H3.5a.5.5 0 0 0 0 1h13a.5.5 0 0 0 0-1H14V3a1 1 0 0 0-1-1H7Zm-1 5v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V7H6Z" />
-                          </svg>
-                        </button>
-                      </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loading ? (
+                  Array.from({ length: 3 }).map((_, idx) => (
+                    <tr key={`leave-loading-${idx}`}>
+                      <td className="px-3 py-3" colSpan={4}>
+                        <div className="h-4 animate-pulse rounded-full bg-slate-200" />
+                      </td>
+                    </tr>
+                  ))
+                ) : !entries.length ? (
+                  <tr>
+                    <td className="px-3 py-4 text-center text-sm text-slate-500" colSpan={4}>
+                      No leave entries yet.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  pagedEntries.map((entry) => (
+                    <tr key={entry.id}>
+                      <td className="px-3 py-3">
+                        <button
+                          type="button"
+                          className="font-semibold text-slate-800 hover:text-brand-accent"
+                          onClick={() => onGoToEmployee?.(entry.employeeId)}
+                        >
+                          {entry.employeeName}
+                        </button>
+                      </td>
+                      <td className="px-3 py-3 text-slate-600">
+                        {entry.department || employeeLookup[entry.employeeId]?.department || '—'}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-700">{formatDateDmy(entry.leaveDate)}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="rounded-full border border-slate-200 p-1 text-slate-500 transition hover:text-brand-accent"
+                            onClick={() => handleEdit(entry)}
+                            disabled={saving}
+                            aria-label="Edit leave"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M13.586 3.586a2 2 0 0 1 2.828 2.828l-.707.707-2.828-2.828.707-.707Z" />
+                              <path d="M14 8.414 11.586 6 4 13.586V16h2.414L14 8.414Z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-full border border-rose-200 p-1 text-rose-500 transition hover:text-rose-600"
+                            onClick={() => handleDelete(entry)}
+                            disabled={saving}
+                            aria-label="Delete leave"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M7 2a1 1 0 0 0-1 1v1H3.5a.5.5 0 0 0 0 1h13a.5.5 0 0 0 0-1H14V3a1 1 0 0 0-1-1H7Zm-1 5v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V7H6Z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
-      <Pagination
-        page={page}
-        totalPages={totalPages}
-        onPageChange={setPage}
-        totalItems={entries.length}
-        pageSize={pageSize}
-        onPageSizeChange={handlePageSizeChange}
-      />
+
+        <Pagination
+          page={page}
+          totalPages={Math.max(1, Math.ceil((entries.length || 0) / pageSize))}
+          onPageChange={setPage}
+          totalItems={entries.length}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+        />
       </div>
     </LocalizationProvider>
   );

@@ -89,6 +89,26 @@ function parseLeaveDate(input) {
   return startOfDay(date);
 }
 
+function buildDateRange(startValue, endValue) {
+  if (!startValue || !endValue) {
+    const error = new Error('Start date and end date are required');
+    error.status = 400;
+    throw error;
+  }
+  const start = parseLeaveDate(startValue);
+  const end = parseLeaveDate(endValue);
+  if (end.getTime() < start.getTime()) {
+    const error = new Error('End date must be after start date');
+    error.status = 400;
+    throw error;
+  }
+  const dates = [];
+  for (let cursor = new Date(start); cursor.getTime() <= end.getTime(); cursor = new Date(cursor.getTime() + 86400000)) {
+    dates.push(new Date(cursor));
+  }
+  return dates;
+}
+
 function getLeavePeriodFor(date) {
   const day = date.getDate();
   const year = date.getFullYear();
@@ -107,15 +127,15 @@ function getLeavePeriodFor(date) {
   };
 }
 
-async function hasLeaveOnDate(employeeId, date) {
-  const [rows] = await pool.execute(
+async function hasLeaveOnDate(employeeId, date, dbClient = pool) {
+  const [rows] = await dbClient.execute(
     'SELECT 1 FROM employee_leave_log WHERE employee_id = ? AND leave_date = ? LIMIT 1',
     [employeeId, formatDateOnly(date)],
   );
   return rows.length > 0;
 }
 
-async function assertCanMarkLeaveOnDate(employeeId, leaveDate, { excludeLogId } = {}) {
+async function assertCanMarkLeaveOnDate(employeeId, leaveDate, { excludeLogId } = {}, dbClient = pool) {
   const targetDate = startOfDay(leaveDate);
   const { start, end } = getLeavePeriodFor(targetDate);
 
@@ -124,7 +144,7 @@ async function assertCanMarkLeaveOnDate(employeeId, leaveDate, { excludeLogId } 
   if (excludeLogId) {
     periodParams.push(excludeLogId);
   }
-  const [[{ periodCount = 0 } = {}]] = await pool.execute(
+  const [[{ periodCount = 0 } = {}]] = await dbClient.execute(
     `SELECT COUNT(*) AS periodCount FROM employee_leave_log WHERE employee_id = ? AND leave_date BETWEEN ? AND ?${periodExclusion}`,
     periodParams,
   );
@@ -139,7 +159,7 @@ async function assertCanMarkLeaveOnDate(employeeId, leaveDate, { excludeLogId } 
   if (excludeLogId) {
     duplicateParams.push(excludeLogId);
   }
-  const [alreadyOnDate] = await pool.execute(
+  const [alreadyOnDate] = await dbClient.execute(
     `SELECT 1 FROM employee_leave_log WHERE employee_id = ? AND leave_date = ?${duplicateExclusion} LIMIT 1`,
     duplicateParams,
   );
@@ -150,8 +170,8 @@ async function assertCanMarkLeaveOnDate(employeeId, leaveDate, { excludeLogId } 
   }
 }
 
-async function recordLeaveForDate(employeeId, leaveDate) {
-  await pool.execute(
+async function recordLeaveForDate(employeeId, leaveDate, dbClient = pool) {
+  await dbClient.execute(
     'INSERT INTO employee_leave_log (employee_id, leave_date) VALUES (?, ?) ON DUPLICATE KEY UPDATE leave_date = VALUES(leave_date)',
     [employeeId, formatDateOnly(leaveDate)],
   );
@@ -549,6 +569,67 @@ router.post('/leave', async (req, res, next) => {
     await refreshLeaveStatuses();
     return res.status(201).json(mapLeaveRow(row));
   } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/leave/bulk', async (req, res, next) => {
+  let connection;
+  try {
+    const { employeeIds, startDate, endDate } = req.body || {};
+    if (!Array.isArray(employeeIds) || !employeeIds.length) {
+      return res.status(400).json({ message: 'Select at least one employee' });
+    }
+    const normalizedIds = Array.from(
+      new Set(
+        employeeIds
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0),
+      ),
+    );
+    if (!normalizedIds.length) {
+      return res.status(400).json({ message: 'Select at least one valid employee' });
+    }
+    const [validEmployees] = await pool.query('SELECT id FROM employees WHERE id IN (?)', [normalizedIds]);
+    if (validEmployees.length !== normalizedIds.length) {
+      return res.status(400).json({ message: 'One or more employees were not found' });
+    }
+    const dates = buildDateRange(startDate, endDate);
+    if (!dates.length) {
+      return res.status(400).json({ message: 'No dates selected' });
+    }
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    let created = 0;
+    for (const date of dates) {
+      for (const employeeId of normalizedIds) {
+        await assertCanMarkLeaveOnDate(employeeId, date, {}, connection);
+        await recordLeaveForDate(employeeId, date, connection);
+        created += 1;
+      }
+    }
+
+    await connection.commit();
+    connection.release();
+    connection = null;
+
+    await refreshLeaveStatuses();
+    return res.status(201).json({
+      created,
+      employeesAffected: normalizedIds.length,
+      dates: dates.map((date) => formatDateOnly(date)),
+    });
+  } catch (err) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (_) {
+        // ignore rollback errors
+      }
+      connection.release();
+    }
     return next(err);
   }
 });
