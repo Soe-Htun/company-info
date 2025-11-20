@@ -406,17 +406,16 @@ export default function Dashboard() {
               />
             </section>
 
-            <section className="glass-panel space-y-4 p-2">
+            <section className="glass-panel space-y-4 px-2">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="flex flex-1 flex-wrap gap-4">
-                  <div className="flex-1 min-w-[220px] mt-2">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="search">
+                <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+                  <div className="min-w-[200px] flex-1">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="search">
                       Search
                     </label>
-                    <div>
-                      <Autocomplete
-                        freeSolo
-                        options={employeeSearchOptions}
+                    <Autocomplete
+                      freeSolo
+                      options={employeeSearchOptions}
                         inputValue={filters.search}
                         onInputChange={(_event, value, reason) => {
                           if (reason === 'input' || reason === 'clear') {
@@ -445,7 +444,7 @@ export default function Dashboard() {
                             {...params}
                             placeholder="Search Name or Code"
                             size="small"
-                            margin="dense"
+                            margin="none"
                             InputProps={{
                               ...params.InputProps,
                               style: {
@@ -461,10 +460,9 @@ export default function Dashboard() {
                           }
                           return option.empCode === value.empCode && option.name === value.name;
                         }}
-                      />
-                    </div>
+                    />
                   </div>
-                  <div className="min-w-[160px] mt-3">
+                  <div className="min-w-[160px]">
                     <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="department">
                       Department
                     </label>
@@ -478,7 +476,7 @@ export default function Dashboard() {
                             setFilters((prev) => ({ ...prev, department: event.target.value || '' }));
                           }}
                           renderValue={(selected) => (selected ? selected : 'All')}
-                          sx={{ borderRadius: '12px', fontSize: '0.875rem' }}
+                          sx={{ borderRadius: '12px', fontSize: '0.875rem', padding: '1px' }}
                         >
                           {departments.map((dept) => (
                             <MenuItem key={dept} value={dept}>
@@ -489,7 +487,7 @@ export default function Dashboard() {
                       </FormControl>
                     </div>
                   </div>
-                  <div className="min-w-[140px] mt-3">
+                  <div className="min-w-[140px]">
                     <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="status">
                       Status
                     </label>
@@ -503,7 +501,7 @@ export default function Dashboard() {
                             setFilters((prev) => ({ ...prev, status: event.target.value || 'all' }))
                           }
                           renderValue={(selected) => (selected ? selected : 'All')}
-                          sx={{ borderRadius: '12px', fontSize: '0.875rem' }}
+                          sx={{ borderRadius: '12px', fontSize: '0.875rem', padding: '1px' }}
                         >
                           {STATUS_OPTIONS.map((statusOption) => (
                             <MenuItem key={statusOption} value={statusOption}>
@@ -515,11 +513,11 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={exportCsv}
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    className="hidden rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
                   >
                     Export CSV
                   </button>

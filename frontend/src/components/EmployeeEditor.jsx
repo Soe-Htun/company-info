@@ -376,19 +376,6 @@ export function EmployeeEditor({
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-address">
-              Address
-            </label>
-            <input
-              id="emp-address"
-              name="address"
-              type="text"
-              value={form.address}
-              onChange={handleChange}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
-            />
-          </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-phone">
               Phone
@@ -398,6 +385,19 @@ export function EmployeeEditor({
               name="phone"
               type="text"
               value={form.phone}
+              onChange={handleChange}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-address">
+              Address
+            </label>
+            <input
+              id="emp-address"
+              name="address"
+              type="text"
+              value={form.address}
               onChange={handleChange}
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-soft"
             />
