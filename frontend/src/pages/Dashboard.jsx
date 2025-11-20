@@ -353,7 +353,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
+      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
             <button
@@ -406,7 +406,7 @@ export default function Dashboard() {
               />
             </section>
 
-            <section className="glass-panel space-y-4 p-4">
+            <section className="glass-panel space-y-4 p-2">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="flex flex-1 flex-wrap gap-4">
                   <div className="flex-1 min-w-[220px] mt-2">
