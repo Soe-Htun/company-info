@@ -6,12 +6,13 @@ const authenticate = require('../middleware/authenticate');
 
 const router = express.Router();
 
-const VALID_SORT_COLUMNS = new Set(['name', 'department', 'age', 'birthday', 'hire_date']);
+const VALID_SORT_COLUMNS = new Set(['emp_code', 'name', 'department', 'age', 'birthday', 'hire_date']);
 const VALID_STATUSES = new Set(['Active', 'On Leave']);
 const EXCLUDED_DEPARTMENTS = new Set(['Networking', 'Architecture', 'ဆရာ']);
 const LEAVE_PERIOD_START_DAY = 11; // month runs 11 -> 10
 const LEAVE_MAX_PER_PERIOD = 4;
 const FIELD_MAP = {
+  empCode: 'emp_code',
   name: 'name',
   birthday: 'birthday',
   address: 'address',
@@ -44,6 +45,7 @@ function mapEmployee(row) {
 
   return {
     id: row.id,
+    empCode: row.emp_code,
     name: row.name,
     birthday: formatDate(row.birthday),
     address: row.address,
@@ -204,7 +206,24 @@ function buildEmployeePayload(body = {}, { isCreate = false } = {}) {
       value = value.trim();
     }
 
-    if (value === '') {
+    if (field === 'empCode') {
+      const normalized = String(value ?? '').trim();
+      if (!normalized) {
+        value = null;
+      } else {
+        if (!/^\d+$/.test(normalized)) {
+          const error = new Error('Employee code must contain only digits');
+          error.status = 400;
+          throw error;
+        }
+        if (normalized.length > 20) {
+          const error = new Error('Employee code must be 20 digits or fewer');
+          error.status = 400;
+          throw error;
+        }
+        value = normalized;
+      }
+    } else if (value === '') {
       value = null;
     }
 
@@ -252,6 +271,23 @@ function buildIdentifierWhere(identifier) {
   return { clause: 'id = ?', value: numeric };
 }
 
+const DEPARTMENT_PRIORITY_ORDER = `CASE
+  WHEN department = 'စူပါ' THEN 0
+  WHEN department = 'CC' THEN 1
+  WHEN department = 'ဖဲဝေ' THEN 2
+  ELSE 3
+END`;
+
+function buildOrderClause(sortBy, sortDir) {
+  if (sortBy === 'emp_code') {
+    return `${DEPARTMENT_PRIORITY_ORDER} ASC, department ASC, LPAD(emp_code, 20, '0') ${sortDir}`;
+  }
+  if (sortBy === 'department') {
+    return `${DEPARTMENT_PRIORITY_ORDER} ASC, department ${sortDir}, LPAD(emp_code, 20, '0') ASC`;
+  }
+  return `${sortBy} ${sortDir}, LPAD(emp_code, 20, '0') ASC`;
+}
+
 const mapLeaveRow = (row) => ({
   id: row.id,
   employeeId: row.employee_id,
@@ -280,9 +316,28 @@ async function assertUniqueNameInDepartment(name, department, excludeId = null) 
   }
 }
 
+async function assertUniqueEmpCode(empCode, excludeId = null) {
+  if (empCode === null || empCode === undefined) return;
+  const trimmedCode = String(empCode).trim();
+  if (!trimmedCode) return;
+
+  let sql = 'SELECT id FROM employees WHERE emp_code = ?';
+  const params = [trimmedCode];
+  if (excludeId) {
+    sql += ' AND id <> ?';
+    params.push(excludeId);
+  }
+  const [rows] = await pool.execute(sql, params);
+  if (rows.length) {
+    const error = new Error('Employee code already exists');
+    error.status = 409;
+    throw error;
+  }
+}
+
 async function fetchEmployeeBy({ clause, value }) {
   const [rows] = await pool.execute(
-    `SELECT id, name, birthday, address, age, department, gender, phone, hire_date, status
+    `SELECT id, emp_code, name, birthday, address, age, department, gender, phone, hire_date, status
      FROM employees
      WHERE ${clause}`,
     [value],
@@ -302,7 +357,7 @@ router.get('/', async (req, res, next) => {
     const pageSize = Math.min(Math.max(parsedPageSize, 5), 50);
     const search = (req.query.search || '').trim();
     const department = (req.query.department || '').trim();
-    const sortBy = VALID_SORT_COLUMNS.has(req.query.sortBy) ? req.query.sortBy : 'name';
+    const sortBy = VALID_SORT_COLUMNS.has(req.query.sortBy) ? req.query.sortBy : 'emp_code';
     const sortDir = req.query.sortDir === 'desc' ? 'DESC' : 'ASC';
     const status = (req.query.status || '').trim();
 
@@ -311,8 +366,8 @@ router.get('/', async (req, res, next) => {
     const params = [];
 
     if (search) {
-      filters.push(`name LIKE ?`);
-      params.push(`%${search}%`);
+      filters.push(`(name LIKE ? OR emp_code LIKE ?)`);
+      params.push(`%${search}%`, `%${search}%`);
     }
 
     if (department) {
@@ -331,11 +386,12 @@ router.get('/', async (req, res, next) => {
     const [countRows] = await pool.query(countSql);
     const totalItems = countRows[0]?.total || 0;
 
+    const orderClause = buildOrderClause(sortBy, sortDir);
     const dataQuery = `
-      SELECT id, name, birthday, address, age, department, gender, phone, hire_date, status
+      SELECT id, emp_code, name, birthday, address, age, department, gender, phone, hire_date, status
       FROM employees
       ${whereClause}
-      ORDER BY ${sortBy} ${sortDir}
+      ORDER BY ${orderClause}
       LIMIT ${pageSize}
       OFFSET ${offset}`;
     const dataSql = mysql.format(dataQuery, params);
@@ -369,7 +425,7 @@ router.get('/departments', async (_req, res, next) => {
 
 router.get('/options', async (_req, res, next) => {
   try {
-    const [rows] = await pool.execute('SELECT id, name, department FROM employees ORDER BY name ASC');
+    const [rows] = await pool.execute('SELECT id, emp_code, name, department FROM employees ORDER BY name ASC');
     res.json(rows);
   } catch (err) {
     next(err);
@@ -564,6 +620,9 @@ router.post('/', async (req, res, next) => {
     await refreshLeaveStatuses();
 
     await assertUniqueNameInDepartment(req.body.name, req.body.department);
+    if (Object.prototype.hasOwnProperty.call(req.body, 'empCode')) {
+      await assertUniqueEmpCode(req.body.empCode);
+    }
     const { columns, values } = buildEmployeePayload(req.body, { isCreate: true });
     const placeholders = columns.map(() => '?').join(', ');
     const query = `INSERT INTO employees (${columns.join(', ')}) VALUES (${placeholders})`;
@@ -575,6 +634,9 @@ router.post('/', async (req, res, next) => {
       const message = err.sqlMessage || '';
       if (message.includes('employee_name_unique') || message.includes('employee_name_department_unique')) {
         return res.status(409).json({ message: 'Employee name already exists in this department' });
+      }
+      if (message.includes('employee_code_unique') || message.includes('emp_code')) {
+        return res.status(409).json({ message: 'Employee code already exists' });
       }
       return res.status(409).json({ message: 'Duplicate employee entry' });
     }
@@ -590,6 +652,10 @@ router.put('/:id', async (req, res, next) => {
     const existingEmployee = await fetchEmployeeBy(identifier);
     if (!existingEmployee) {
       return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, 'empCode')) {
+      await assertUniqueEmpCode(req.body.empCode, identifier.value);
     }
 
     const { columns, values } = buildEmployeePayload(req.body, { isCreate: false });
@@ -620,6 +686,9 @@ router.put('/:id', async (req, res, next) => {
       const message = err.sqlMessage || '';
       if (message.includes('employee_name_unique') || message.includes('employee_name_department_unique')) {
         return res.status(409).json({ message: 'Employee name already exists in this department' });
+      }
+      if (message.includes('employee_code_unique') || message.includes('emp_code')) {
+        return res.status(409).json({ message: 'Employee code already exists' });
       }
       return res.status(409).json({ message: 'Duplicate employee entry' });
     }

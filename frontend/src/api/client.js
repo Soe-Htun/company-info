@@ -1,43 +1,62 @@
+import axios from 'axios';
 import { UNAUTHORIZED_EVENT } from '../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-export async function request({ path, method = 'GET', body, token, signal }) {
-  const response = await fetch(`${API_URL}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal,
-  });
+const http = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
-  if (!response.ok) {
-    let message = 'Unable to complete request';
-    let payload;
-    try {
-      payload = await response.json();
-      message = payload.message || message;
-    } catch (err) {
-      // ignore parse errors
-    }
-    const error = new Error(message);
-    error.status = response.status;
-    if (payload) {
-      error.payload = payload;
-    }
-    if (error.status === 401) {
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
       window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    }
+    return Promise.reject(error);
+  },
+);
+
+export async function request({ path, method = 'GET', body, token, signal }) {
+  try {
+    const response = await http.request({
+      url: path,
+      method,
+      data: body,
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined,
+      signal,
+    });
+
+    if (response.status === 204 || response.data === undefined) {
+      return null;
+    }
+
+    return response.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') {
+      error.name = 'AbortError';
+      throw error;
+    }
+    const status = error.response?.status;
+    const payload = error.response?.data;
+    const message = payload?.message || error.message || 'Unable to complete request';
+    if (status) {
+      const normalizedError = new Error(message);
+      normalizedError.status = status;
+      if (payload) {
+        normalizedError.payload = payload;
+      }
+      throw normalizedError;
     }
     throw error;
   }
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  return response.json();
 }
 
 export function buildQuery(params) {

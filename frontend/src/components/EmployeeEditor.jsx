@@ -30,6 +30,7 @@ const sanitizeDepartment = (value) => {
 };
 
 const EMPTY_FORM = {
+  empCode: '',
   name: '',
   department: DEFAULT_DEPARTMENT,
   gender: 'Female',
@@ -42,6 +43,7 @@ const EMPTY_FORM = {
 function toForm(employee) {
   if (!employee) return EMPTY_FORM;
   return {
+    empCode: employee.empCode || '',
     name: employee.name || '',
     department: sanitizeDepartment(employee.department),
     gender: employee.gender || 'Female',
@@ -112,6 +114,10 @@ export function EmployeeEditor({
   const handleSubmit = (event) => {
     event.preventDefault();
     const nextLocalErrors = {};
+    const normalizedCode = (form.empCode || '').trim();
+    if (normalizedCode && !/^\d+$/.test(normalizedCode)) {
+      nextLocalErrors.empCode = 'Employee code must be digits only';
+    }
     if (!form.name.trim()) {
       nextLocalErrors.name = 'Name is required';
     }
@@ -129,6 +135,7 @@ export function EmployeeEditor({
     setLocalErrors({});
 
     const payload = {
+      empCode: normalizedCode,
       name: form.name.trim(),
       department: form.department.trim(),
       gender: form.gender || 'Male',
@@ -158,6 +165,25 @@ export function EmployeeEditor({
       return;
     }
     onSubmit(payload);
+  };
+
+  const handleNumericKeyDown = (event) => {
+    const allowedKeys = [
+      'Backspace',
+      'Delete',
+      'Tab',
+      'ArrowLeft',
+      'ArrowRight',
+      'Home',
+      'End',
+    ];
+    const isShortcut = (event.ctrlKey || event.metaKey) && ['a', 'c', 'v', 'x'].includes(event.key.toLowerCase());
+    if (allowedKeys.includes(event.key) || isShortcut || event.key.length > 1) {
+      return;
+    }
+    if (!/^\d$/.test(event.key)) {
+      event.preventDefault();
+    }
   };
 
   const handleDatePickerChange = (field) => (value) => {
@@ -227,37 +253,58 @@ export function EmployeeEditor({
             ) : null}
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Department <span className="font-semibold text-rose-500"> *</span>
-            </p>
-            {availableDepartments.length ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {availableDepartments.map((dept) => {
-                  const isActive = form.department === dept;
-                  return (
-                    <button
-                      key={dept}
-                      type="button"
-                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
-                          ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
-                          : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
-                        }`}
-                      onClick={() => {
-                        onClearFieldError?.('department');
-                        setForm((prev) => ({ ...prev, department: dept }));
-                        setDepartmentsTouched(true);
-                      }}
-                    >
-                      {dept}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="mt-2 text-sm text-slate-500">No departments available yet.</p>
-            )}
-            {localErrors.department ? <p className="mt-1 text-xs text-rose-600">{localErrors.department}</p> : null}
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="emp-code">
+              Employee Code <span className="text-[10px] font-semibold uppercase text-slate-400">(Optional)</span>
+            </label>
+            <input
+              id="emp-code"
+              name="empCode"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={form.empCode}
+              onChange={handleChange}
+              onKeyDown={handleNumericKeyDown}
+              className={getInputClasses('empCode')}
+              placeholder="e.g. 00910"
+            />
+            {fieldErrors.empCode || localErrors.empCode ? (
+              <p className="mt-1 text-xs text-rose-600">{fieldErrors.empCode || localErrors.empCode}</p>
+            ) : null}
           </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Department <span className="font-semibold text-rose-500"> *</span>
+          </p>
+          {availableDepartments.length ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {availableDepartments.map((dept) => {
+                const isActive = form.department === dept;
+                return (
+                  <button
+                    key={dept}
+                    type="button"
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
+                        ? 'border-brand-accent bg-brand-accent/10 text-brand-accent'
+                        : 'border-slate-200 text-slate-600 hover:border-brand-accent/40'
+                      }`}
+                    onClick={() => {
+                      onClearFieldError?.('department');
+                      setForm((prev) => ({ ...prev, department: dept }));
+                      setDepartmentsTouched(true);
+                    }}
+                  >
+                    {dept}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-slate-500">No departments available yet.</p>
+          )}
+          {localErrors.department ? <p className="mt-1 text-xs text-rose-600">{localErrors.department}</p> : null}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 pb-2">

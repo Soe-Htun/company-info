@@ -1,5 +1,5 @@
 const columns = [
-  { key: 'id', label: 'ID' },
+  { key: 'empCode', label: 'Code', sortable: true },
   { key: 'name', label: 'Name', sortable: true },
   { key: 'department', label: 'Department', sortable: true },
   { key: 'birthday', label: 'Birthday', sortable: true },
@@ -48,17 +48,7 @@ function RowSkeleton({ cells }) {
   );
 }
 
-export function EmployeeTable({
-  data,
-  sortBy,
-  sortDir,
-  onSortChange,
-  loading,
-  onEdit,
-  onDelete,
-  onDetail,
-  rowOffset = 0,
-}) {
+export function EmployeeTable({ data, sortBy, sortDir, onSortChange, loading, onEdit, onDelete, onDetail }) {
   const handleSort = (column) => {
     const nextDirection = sortBy === column && sortDir === 'asc' ? 'desc' : 'asc';
     onSortChange({ sortBy: column, sortDir: nextDirection });
@@ -90,8 +80,8 @@ export function EmployeeTable({
                     className="cursor-pointer transition hover:bg-brand-soft/40"
                     onClick={() => onDetail?.(employee)}
                   >
-                    <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-slate-500">
-                      {rowOffset + idx + 1}
+                    <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-slate-600">
+                      {employee.empCode || '—'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">
                       <p className="font-semibold text-slate-800">{employee.name}</p>

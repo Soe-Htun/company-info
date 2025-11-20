@@ -26,6 +26,7 @@ import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 
 const SORT_COLUMN_MAP = {
+  empCode: 'emp_code',
   name: 'name',
   department: 'department',
   birthday: 'birthday',
@@ -52,7 +53,7 @@ export default function Dashboard() {
   const [meta, setMeta] = useState({ page: 1, totalPages: 1, totalItems: 0, pageSize: 10 });
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ search: '', department: '', status: 'all', pageSize: 10 });
-  const [sort, setSort] = useState({ sortBy: 'name', sortDir: 'asc' });
+  const [sort, setSort] = useState({ sortBy: 'empCode', sortDir: 'asc' });
   const debouncedSearch = useDebounce(filters.search);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -77,12 +78,11 @@ export default function Dashboard() {
 
   const exportCsv = () => {
     if (!employees.length) return;
-    const headers = ['ID', 'Name', 'Department', 'Birthday', 'Gender', 'Age', 'Phone'];
-    const baseIndex = ((meta?.page || page || 1) - 1) * (meta?.pageSize || filters.pageSize || 10);
+    const headers = ['Employee Code', 'Name', 'Department', 'Birthday', 'Gender', 'Age', 'Phone'];
     const rows = employees.map((employee, idx) => {
       const roundedAge = getRoundedAgeYears(employee.birthday);
       return [
-        baseIndex + idx + 1,
+        employee.empCode || '',
         employee.name,
         employee.department,
         formatDateDmy(employee.birthday),
@@ -260,6 +260,9 @@ export default function Dashboard() {
       const nextErrors = {};
       if (/employee name/i.test(message)) {
         nextErrors.name = message;
+      }
+      if (/employee code/i.test(message)) {
+        nextErrors.empCode = message;
       }
       setFieldErrors(nextErrors);
       if (!Object.keys(nextErrors).length) {
@@ -504,7 +507,6 @@ export default function Dashboard() {
                 onEdit={openEdit}
                 onDelete={requestDelete}
                 onDetail={(employee) => navigate(`/details/${employee.id}`)}
-                rowOffset={Math.max(0, ((meta.page || 1) - 1) * filters.pageSize)}
               />
               <Pagination
                 page={page}

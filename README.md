@@ -68,6 +68,26 @@ Key `.env` values:
    ```
 3. Verify that the `employees` and `users` tables contain data. Generate hashes for new passwords with `node -e "console.log(require('bcryptjs').hashSync('MyPassword', 10))"`. Once logged in, you can also add accounts from the new “User Accounts” tab in the dashboard.
 
+### Upgrading an Existing `employees` Table With Codes
+
+If `mysql> DESCRIBE employees;` does not show an `emp_code` column yet, run the following statements (adjusting the padding logic if you already have official codes):
+
+```sql
+ALTER TABLE employees
+  ADD COLUMN emp_code VARCHAR(20) NULL AFTER id;
+
+-- Generate simple zero-padded codes based on the current primary key.
+UPDATE employees
+SET emp_code = LPAD(id, 5, '0')
+WHERE emp_code IS NULL OR emp_code = '';
+
+ALTER TABLE employees
+  MODIFY emp_code VARCHAR(20) NULL,
+  ADD UNIQUE KEY employee_code_unique (emp_code);
+```
+
+You can re-run the `UPDATE` later for any new employees if you prefer a different numbering scheme. Because the column allows `NULL`, leaving the code blank when creating/editing an employee is perfectly valid.
+
 ## 3. Install Dependencies
 
 ```bash
