@@ -210,7 +210,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
                 }
                 isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
                 renderOption={(props, option) => (
-                  <li {...props} key={`assign-${option.id ?? option.name}`}>{option?.name ? `${option.name}${option.department ? ` (${option.department})` : ''}` : ''}</li>
+                  <li {...props} key={`assign-${option.id ?? option.name}`}>{option?.name || ''}</li>
                 )}
                 renderInput={(params) => (
                   <TextField
@@ -312,7 +312,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
                 }
                 isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
                 renderOption={(props, option) => (
-                  <li {...props} key={`filter-${option.id ?? option.name}`}>{option?.name ? `${option.name}${option.department ? ` (${option.department})` : ''}` : ''}</li>
+                  <li {...props} key={`filter-${option.id ?? option.name}`}>{option?.name || ''}</li>
                 )}
                 renderInput={(params) => (
                   <TextField

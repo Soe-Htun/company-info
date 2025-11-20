@@ -432,8 +432,8 @@ export default function Dashboard() {
                           if (typeof value === 'string') {
                             setFilters((prev) => ({ ...prev, search: value }));
                           } else {
-                            const nextValue = value.empCode || value.name || '';
-                            setFilters((prev) => ({ ...prev, search: nextValue }));
+                            const displayValue = value.name || value.empCode || '';
+                            setFilters((prev) => ({ ...prev, search: displayValue }));
                           }
                         }}
                         getOptionLabel={(option) => formatEmployeeOptionLabel(option)}
