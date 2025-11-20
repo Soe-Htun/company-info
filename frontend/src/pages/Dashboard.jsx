@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { buildQuery, request } from '../api/client';
-import { formatAgeDuration, getRoundedAgeYears } from '../utils/date';
+import { formatYearsDuration, getRoundedAgeYears } from '../utils/date';
 import { EmployeeEditor } from '../components/EmployeeEditor';
 import { LeaveManagement } from '../components/LeaveManagement';
 import { EmployeeTable } from '../components/EmployeeTable';
@@ -438,7 +438,7 @@ export default function Dashboard() {
                         }}
                         getOptionLabel={(option) => formatEmployeeOptionLabel(option)}
                         renderOption={(props, option) => (
-                          <li {...props}>{formatEmployeeOptionLabel(option)}</li>
+                          <li {...props} key={`${option?.empCode || option?.name || option}`}>{formatEmployeeOptionLabel(option)}</li>
                         )}
                         renderInput={(params) => (
                           <TextField

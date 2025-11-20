@@ -22,7 +22,7 @@ const safeDate = (value) => {
   return date;
 };
 
-const calculateAgeParts = (birthday) => {
+const calculateDurationParts = (birthday) => {
   const birthDate = safeDate(birthday);
   if (!birthDate) return null;
 
@@ -67,9 +67,9 @@ export const formatMonthDay = (value) => {
   return monthDayFormatter.format(date);
 };
 
-export const formatAgeDuration = (birthday, { blankIfInvalid = false, style = 'long' } = {}) => {
+export const formatYearsDuration = (birthday, { blankIfInvalid = false, style = 'long' } = {}) => {
   const fallback = blankIfInvalid ? '' : '—';
-  const age = calculateAgeParts(birthday);
+  const age = calculateDurationParts(birthday);
   if (!age) return fallback;
   const { years, months } = age;
 
@@ -103,7 +103,7 @@ export const formatAgeDuration = (birthday, { blankIfInvalid = false, style = 'l
 };
 
 export const getRoundedAgeYears = (birthday) => {
-  const age = calculateAgeParts(birthday);
+  const age = calculateDurationParts(birthday);
   if (!age) return null;
   const { years, months } = age;
   return months > 6 ? years + 1 : years;

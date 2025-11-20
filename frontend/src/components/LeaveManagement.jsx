@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -8,7 +8,7 @@ import TextField from '@mui/material/TextField';
 import { toast } from 'react-toastify';
 
 import { request } from '../api/client';
-import { formatDateDmy } from '../utils/date';
+import { formatDateNamedMonth } from '../utils/date';
 import { Pagination } from './Pagination';
 
 const ISO_DATE_FORMAT = 'YYYY-MM-DD';
@@ -29,12 +29,30 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [filters, setFilters] = useState({ employeeId: '', leaveDate: '' });
+  const formRef = useRef(null);
 
   const resetForm = () => {
     setForm({ ...EMPTY_FORM });
     setEditingId(null);
     setFormErrors({});
   };
+
+  const filteredEntries = useMemo(() => {
+    const filterDate = filters.leaveDate ? dayjs(filters.leaveDate).format(ISO_DATE_FORMAT) : null;
+    return entries.filter((entry) => {
+      if (filters.employeeId && String(entry.employeeId) !== String(filters.employeeId)) {
+        return false;
+      }
+      if (filterDate) {
+        const entryDate = dayjs(entry.leaveDate).format(ISO_DATE_FORMAT);
+        if (entryDate !== filterDate) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [entries, filters.employeeId, filters.leaveDate]);
 
   const employeeLookup = useMemo(() => {
     return employees.reduce((map, item) => {
@@ -46,6 +64,11 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
   const selectedEmployees = useMemo(() => {
     return form.employeeIds.map((id) => employees.find((emp) => String(emp.id) === String(id))).filter(Boolean);
   }, [employees, form.employeeIds]);
+
+  const filterEmployeeValue = useMemo(() => {
+    if (!filters.employeeId) return null;
+    return employees.find((emp) => String(emp.id) === String(filters.employeeId)) || null;
+  }, [employees, filters.employeeId]);
 
   const loadEntries = () => {
     if (!token) return;
@@ -72,12 +95,12 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
 
   useEffect(() => {
     setPage(1);
-  }, [pageSize, entries.length]);
+  }, [pageSize, filteredEntries.length, filters.employeeId, filters.leaveDate]);
 
   const pagedEntries = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return entries.slice(start, start + pageSize);
-  }, [entries, page, pageSize]);
+    return filteredEntries.slice(start, start + pageSize);
+  }, [filteredEntries, page, pageSize]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -123,6 +146,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
     setEditingId(entry.id);
     setForm({ employeeIds: [String(entry.employeeId)], leaveDate: entry.leaveDate });
     setFormErrors({});
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (entry) => {
@@ -164,7 +188,11 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
           ) : null}
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4"
+          ref={formRef}
+        >
           <div className="grid gap-3 md:grid-cols-3">
             <div className="md:col-span-2">
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="leave-employee">
@@ -181,6 +209,9 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
                   option?.name ? `${option.name}${option.department ? ` (${option.department})` : ''}` : ''
                 }
                 isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
+                renderOption={(props, option) => (
+                  <li {...props} key={`assign-${option.id ?? option.name}`}>{option?.name ? `${option.name}${option.department ? ` (${option.department})` : ''}` : ''}</li>
+                )}
                 renderInput={(params) => (
                   <TextField
                     {...params}
@@ -251,6 +282,78 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
 
         {error && !Object.keys(formErrors).length ? <p className="text-sm text-rose-600">{error}</p> : null}
 
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Filter Leave Records</p>
+            {(filters.employeeId || filters.leaveDate) && (
+              <button
+                type="button"
+                className="text-xs font-semibold text-brand-accent hover:underline"
+                onClick={() => setFilters({ employeeId: '', leaveDate: '' })}
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="filter-employee">
+                Employee
+              </label>
+              <Autocomplete
+                id="filter-employee"
+                options={employees}
+                value={filterEmployeeValue}
+                onChange={(_event, value) => {
+                  setFilters((prev) => ({ ...prev, employeeId: value?.id ? String(value.id) : '' }));
+                }}
+                getOptionLabel={(option) =>
+                  option?.name ? `${option.name}${option.department ? ` (${option.department})` : ''}` : ''
+                }
+                isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
+                renderOption={(props, option) => (
+                  <li {...props} key={`filter-${option.id ?? option.name}`}>{option?.name ? `${option.name}${option.department ? ` (${option.department})` : ''}` : ''}</li>
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="All employees"
+                    size="small"
+                    margin="dense"
+                    sx={{
+                      '& .MuiInputBase-root': { borderRadius: '0.75rem', fontSize: '0.875rem' },
+                    }}
+                  />
+                )}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="filter-date">
+                Leave Date
+              </label>
+              <div className="mt-2">
+                <DatePicker
+                  value={filters.leaveDate ? dayjs(filters.leaveDate, ISO_DATE_FORMAT) : null}
+                  onChange={(value) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      leaveDate: value ? value.format(ISO_DATE_FORMAT) : '',
+                    }))
+                  }
+                  format={DISPLAY_DATE_FORMAT}
+                  slotProps={{
+                    textField: {
+                      size: 'small',
+                      placeholder: 'DD/MM/YYYY',
+                      sx: { '& .MuiInputBase-root': { borderRadius: '0.75rem', fontSize: '0.875rem' } },
+                    },
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
@@ -292,7 +395,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
                       <td className="px-3 py-3 text-slate-600">
                         {entry.department || employeeLookup[entry.employeeId]?.department || '—'}
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap text-slate-700">{formatDateDmy(entry.leaveDate)}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-700">{formatDateNamedMonth(entry.leaveDate)}</td>
                       <td className="px-3 py-3">
                         <div className="flex gap-2">
                           <button
@@ -329,13 +432,13 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
         </div>
 
         <Pagination
-          page={page}
-          totalPages={Math.max(1, Math.ceil((entries.length || 0) / pageSize))}
-          onPageChange={setPage}
-          totalItems={entries.length}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-        />
+        page={page}
+        totalPages={Math.max(1, Math.ceil((filteredEntries.length || 0) / pageSize))}
+        onPageChange={setPage}
+        totalItems={filteredEntries.length}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
       </div>
     </LocalizationProvider>
   );

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { request } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { formatAgeDuration, formatDateDmy, formatDateNamedMonth } from '../utils/date';
+import { formatYearsDuration, formatDateDmy, formatDateNamedMonth } from '../utils/date';
 import { UserMenu } from '../components/UserMenu';
 
 export default function EmployeeDetail() {
@@ -28,15 +28,18 @@ export default function EmployeeDetail() {
       });
   }, [id, token]);
 
-  const profileFields = useMemo(
-    () => [
+  const profileFields = useMemo(() => {
+    const fields = [
       { label: 'Gender', value: employee?.gender },
       { label: 'Birthday', value: formatDateNamedMonth(employee?.birthday) },
-      { label: 'Age', value: formatAgeDuration(employee?.birthday) },
+      { label: 'Age', value: formatYearsDuration(employee?.birthday) },
       { label: 'Start Date', value: formatDateDmy(employee?.hireDate) },
-    ],
-    [employee],
-  );
+    ];
+    if (employee?.hireDate) {
+      fields.push({ label: 'Working Years', value: formatYearsDuration(employee?.hireDate) });
+    }
+    return fields;
+  }, [employee]);
 
   const contactFields = useMemo(
     () => [
