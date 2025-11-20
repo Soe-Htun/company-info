@@ -30,11 +30,10 @@ export default function EmployeeDetail() {
 
   const profileFields = useMemo(
     () => [
-      { label: 'Employee Code', value: employee?.empCode },
-      { label: 'Birthday', value: formatDateNamedMonth(employee?.birthday) },
-      { label: 'Start Date', value: formatDateDmy(employee?.hireDate) },
-      { label: 'Age', value: formatAgeDuration(employee?.birthday) },
       { label: 'Gender', value: employee?.gender },
+      { label: 'Birthday', value: formatDateNamedMonth(employee?.birthday) },
+      { label: 'Age', value: formatAgeDuration(employee?.birthday) },
+      { label: 'Start Date', value: formatDateDmy(employee?.hireDate) },
     ],
     [employee],
   );
@@ -78,14 +77,9 @@ export default function EmployeeDetail() {
           <div className="rounded-3xl border border-slate-100 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-accent">Employee Detail</p>
             <h2 className="mt-3 text-3xl font-semibold text-slate-900">{employee?.name || 'Loading…'}</h2>
-            {employee?.empCode ? (
-              <p className="mt-1 font-mono text-sm text-slate-500">
-                Code: <span className="font-semibold text-slate-700">{employee.empCode}</span>
-              </p>
-            ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
               {[
-                { label: 'Employee Code', value: employee?.empCode },
+                { label: 'Code', value: employee?.empCode },
                 { label: 'Department', value: employee?.department },
                 { label: 'Status', value: employee?.status },
               ].map((tag) => (

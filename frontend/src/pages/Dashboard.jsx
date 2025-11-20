@@ -47,6 +47,17 @@ const formatDateDmy = (value) => {
   return `${day}/${month}/${year}`;
 };
 
+const formatEmployeeOptionLabel = (option) => {
+  if (!option) return '';
+  if (typeof option === 'string') return option;
+  const name = option.name || option.empCode || '';
+  const code = option.empCode || '';
+  if (name && code) {
+    return `${name} (${code})`;
+  }
+  return name || code || '';
+};
+
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
   const [employees, setEmployees] = useState([]);
@@ -169,8 +180,22 @@ export default function Dashboard() {
     if (!token) return;
     request({ path: '/api/employees/options', token })
       .then((list) => {
-        const names = Array.from(new Set((list || []).map((item) => item?.name).filter(Boolean)));
-        setEmployeeSearchOptions(names);
+        const options = (list || [])
+          .map((item) => ({
+            id: item.id,
+            name: item?.name || '',
+            empCode: item?.emp_code || '',
+            department: item?.department || '',
+          }))
+          .filter((item) => item.name || item.empCode);
+        const seen = new Set();
+        const unique = options.filter((item) => {
+          const key = `${item.name}::${item.empCode}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setEmployeeSearchOptions(unique);
       })
       .catch(() => {});
   }, [token, refreshIndex]);
@@ -391,11 +416,32 @@ export default function Dashboard() {
                         freeSolo
                         options={employeeSearchOptions}
                         inputValue={filters.search}
-                        onInputChange={(_event, value) => setFilters((prev) => ({ ...prev, search: value || '' }))}
+                        onInputChange={(_event, value, reason) => {
+                          if (reason === 'input') {
+                            setFilters((prev) => ({ ...prev, search: value || '' }));
+                          }
+                        }}
+                        onChange={(_event, value, reason) => {
+                          if (reason === 'clear') {
+                            setFilters((prev) => ({ ...prev, search: '' }));
+                            return;
+                          }
+                          if (!value) return;
+                          if (typeof value === 'string') {
+                            setFilters((prev) => ({ ...prev, search: value }));
+                          } else {
+                            const nextValue = value.empCode || value.name || '';
+                            setFilters((prev) => ({ ...prev, search: nextValue }));
+                          }
+                        }}
+                        getOptionLabel={(option) => formatEmployeeOptionLabel(option)}
+                        renderOption={(props, option) => (
+                          <li {...props}>{formatEmployeeOptionLabel(option)}</li>
+                        )}
                         renderInput={(params) => (
                           <TextField
                             {...params}
-                            placeholder="Search Name"
+                            placeholder="Search Name or Code"
                             size="small"
                             margin="dense"
                             InputProps={{
@@ -407,6 +453,12 @@ export default function Dashboard() {
                             }}
                           />
                         )}
+                        isOptionEqualToValue={(option, value) => {
+                          if (typeof option === 'string' || typeof value === 'string') {
+                            return option === value;
+                          }
+                          return option.empCode === value.empCode && option.name === value.name;
+                        }}
                       />
                     </div>
                   </div>
