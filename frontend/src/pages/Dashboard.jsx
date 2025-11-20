@@ -419,7 +419,7 @@ export default function Dashboard() {
                         options={employeeSearchOptions}
                         inputValue={filters.search}
                         onInputChange={(_event, value, reason) => {
-                          if (reason === 'input') {
+                          if (reason === 'input' || reason === 'clear') {
                             setFilters((prev) => ({ ...prev, search: value || '' }));
                           }
                         }}
