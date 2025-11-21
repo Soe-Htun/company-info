@@ -10,7 +10,6 @@ const VALID_SORT_COLUMNS = new Set(['emp_code', 'name', 'department', 'age', 'bi
 const VALID_STATUSES = new Set(['Active', 'On Leave']);
 const EXCLUDED_DEPARTMENTS = new Set(['Networking', 'Architecture', 'ဆရာ']);
 const LEAVE_PERIOD_START_DAY = 11; // month runs 11 -> 10
-const LEAVE_MAX_PER_PERIOD = 4;
 const FIELD_MAP = {
   empCode: 'emp_code',
   name: 'name',
@@ -137,22 +136,6 @@ async function hasLeaveOnDate(employeeId, date, dbClient = pool) {
 
 async function assertCanMarkLeaveOnDate(employeeId, leaveDate, { excludeLogId } = {}, dbClient = pool) {
   const targetDate = startOfDay(leaveDate);
-  const { start, end } = getLeavePeriodFor(targetDate);
-
-  const periodParams = [employeeId, formatDateOnly(start), formatDateOnly(end)];
-  const periodExclusion = excludeLogId ? ' AND id <> ?' : '';
-  if (excludeLogId) {
-    periodParams.push(excludeLogId);
-  }
-  const [[{ periodCount = 0 } = {}]] = await dbClient.execute(
-    `SELECT COUNT(*) AS periodCount FROM employee_leave_log WHERE employee_id = ? AND leave_date BETWEEN ? AND ?${periodExclusion}`,
-    periodParams,
-  );
-  if (periodCount >= LEAVE_MAX_PER_PERIOD) {
-    const error = new Error('Leave limit reached for this period (max 4 days)');
-    error.status = 400;
-    throw error;
-  }
 
   const duplicateParams = [employeeId, formatDateOnly(targetDate)];
   const duplicateExclusion = excludeLogId ? ' AND id <> ?' : '';
@@ -311,6 +294,7 @@ function buildOrderClause(sortBy, sortDir) {
 const mapLeaveRow = (row) => ({
   id: row.id,
   employeeId: row.employee_id,
+  empCode: row.emp_code ?? row.empCode ?? null,
   employeeName: row.name,
   department: row.department,
   leaveDate: formatDate(row.leave_date),
@@ -528,7 +512,7 @@ router.get('/leave', async (_req, res, next) => {
     const today = new Date();
     const { start, end } = getLeavePeriodFor(today);
     const [rows] = await pool.execute(
-      `SELECT l.id, l.employee_id, l.leave_date, e.name, e.department
+      `SELECT l.id, l.employee_id, l.leave_date, e.emp_code, e.name, e.department
        FROM employee_leave_log l
        JOIN employees e ON e.id = l.employee_id
        WHERE l.leave_date BETWEEN ? AND ?
@@ -559,7 +543,7 @@ router.post('/leave', async (req, res, next) => {
     await recordLeaveForDate(employeeId, leaveDate);
 
     const [[row]] = await pool.execute(
-      `SELECT l.id, l.employee_id, l.leave_date, e.name, e.department
+      `SELECT l.id, l.employee_id, l.leave_date, e.emp_code, e.name, e.department
        FROM employee_leave_log l
        JOIN employees e ON e.id = l.employee_id
        WHERE l.employee_id = ? AND l.leave_date = ?
@@ -638,7 +622,7 @@ router.put('/leave/:id', async (req, res, next) => {
   try {
     const identifier = buildIdentifierWhere(req.params.id);
     const [existingRows] = await pool.execute(
-      `SELECT l.id, l.employee_id, l.leave_date, e.name, e.department
+      `SELECT l.id, l.employee_id, l.leave_date, e.emp_code, e.name, e.department
        FROM employee_leave_log l
        JOIN employees e ON e.id = l.employee_id
        WHERE l.id = ?`,
@@ -673,6 +657,7 @@ router.put('/leave/:id', async (req, res, next) => {
         id: existing.id,
         employee_id: nextEmployeeId,
         leave_date: formatDateOnly(nextLeaveDate),
+        emp_code: updated.empCode,
         name: updated.name,
         department: updated.department,
       }),

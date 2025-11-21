@@ -1,6 +1,6 @@
 const columns = [
-  { key: 'empCode', label: 'Code', sortable: true },
   { key: 'name', label: 'Name', sortable: true },
+  { key: 'empCode', label: 'Code', sortable: true },
   { key: 'department', label: 'Department', sortable: true },
   { key: 'birthday', label: 'Birthday', sortable: true },
   { key: 'status', label: 'Status' },
@@ -80,11 +80,11 @@ export function EmployeeTable({ data, sortBy, sortDir, onSortChange, loading, on
                     className="cursor-pointer transition hover:bg-brand-soft/40"
                     onClick={() => onDetail?.(employee)}
                   >
-                    <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-slate-600">
-                      {employee.empCode || '—'}
-                    </td>
                     <td className="whitespace-nowrap px-3 py-3">
                       <p className="font-semibold text-slate-800">{employee.name}</p>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-slate-600">
+                      {employee.empCode || '—'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">

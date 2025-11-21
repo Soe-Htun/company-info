@@ -3,12 +3,12 @@ import dayjs from 'dayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import Autocomplete from '@mui/material/Autocomplete';
+import Autocomplete, { createFilterOptions } from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
 import { toast } from 'react-toastify';
 
 import { request } from '../api/client';
-import { formatDateNamedMonth } from '../utils/date';
+import { formatDateDmy, formatDateNamedMonth } from '../utils/date';
 import { Pagination } from './Pagination';
 
 const ISO_DATE_FORMAT = 'YYYY-MM-DD';
@@ -17,6 +17,21 @@ const EMPTY_FORM = {
   employeeIds: [],
   leaveDate: dayjs().format(ISO_DATE_FORMAT),
 };
+const formatEmployeeOption = (option) => {
+  if (!option || !option.name) return '';
+  const code = option.emp_code ?? option.empCode;
+  return code ? `${option.name} (${code})` : option.name;
+};
+const employeeFilterOptions = createFilterOptions({
+  stringify: (option) => {
+    if (!option) return '';
+    const parts = [];
+    if (option.name) parts.push(option.name);
+    const code = option.emp_code ?? option.empCode;
+    if (code) parts.push(code);
+    return parts.join(' ');
+  },
+});
 
 export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
   const [entries, setEntries] = useState([]);
@@ -205,12 +220,11 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
                 loading={!employees.length && !error}
                 value={editingId ? selectedEmployees[0] || null : selectedEmployees}
                 onChange={handleEmployeeChange}
-                getOptionLabel={(option) =>
-                  option?.name ? `${option.name}${option.department ? ` (${option.department})` : ''}` : ''
-                }
+                getOptionLabel={formatEmployeeOption}
                 isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
+                filterOptions={employeeFilterOptions}
                 renderOption={(props, option) => (
-                  <li {...props} key={`assign-${option.id ?? option.name}`}>{option?.name || ''}</li>
+                  <li {...props} key={`assign-${option.id ?? option.name}`}>{formatEmployeeOption(option)}</li>
                 )}
                 renderInput={(params) => (
                   <TextField
@@ -282,84 +296,86 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
 
         {error && !Object.keys(formErrors).length ? <p className="text-sm text-rose-600">{error}</p> : null}
 
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Filter Leave Records</p>
-            {(filters.employeeId || filters.leaveDate) && (
-              <button
-                type="button"
-                className="text-xs font-semibold text-brand-accent hover:underline"
-                onClick={() => setFilters({ employeeId: '', leaveDate: '' })}
-              >
-                Clear Filters
-              </button>
-            )}
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="filter-employee">
-                Employee
-              </label>
-              <Autocomplete
-                id="filter-employee"
-                options={employees}
-                value={filterEmployeeValue}
-                onChange={(_event, value) => {
-                  setFilters((prev) => ({ ...prev, employeeId: value?.id ? String(value.id) : '' }));
-                }}
-                getOptionLabel={(option) =>
-                  option?.name ? `${option.name}${option.department ? ` (${option.department})` : ''}` : ''
-                }
-                isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
-                renderOption={(props, option) => (
-                  <li {...props} key={`filter-${option.id ?? option.name}`}>{option?.name || ''}</li>
-                )}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="All employees"
-                    size="small"
-                    margin="dense"
-                    sx={{
-                      '& .MuiInputBase-root': { borderRadius: '0.75rem', fontSize: '0.875rem' },
+        {!editingId ? (
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Filter Leave Records</p>
+              {(filters.employeeId || filters.leaveDate) && (
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-brand-accent hover:underline"
+                  onClick={() => setFilters({ employeeId: '', leaveDate: '' })}
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="filter-employee">
+                  Employee
+                </label>
+                <Autocomplete
+                  id="filter-employee"
+                  options={employees}
+                  value={filterEmployeeValue}
+                  onChange={(_event, value) => {
+                    setFilters((prev) => ({ ...prev, employeeId: value?.id ? String(value.id) : '' }));
+                  }}
+                  getOptionLabel={formatEmployeeOption}
+                  isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
+                  filterOptions={employeeFilterOptions}
+                  renderOption={(props, option) => (
+                    <li {...props} key={`filter-${option.id ?? option.name}`}>{formatEmployeeOption(option)}</li>
+                  )}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder="All employees"
+                      size="small"
+                      margin="dense"
+                      sx={{
+                        '& .MuiInputBase-root': { borderRadius: '0.75rem', fontSize: '0.875rem' },
+                      }}
+                    />
+                  )}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="filter-date">
+                  Leave Date
+                </label>
+                <div className="mt-2">
+                  <DatePicker
+                    value={filters.leaveDate ? dayjs(filters.leaveDate, ISO_DATE_FORMAT) : null}
+                    onChange={(value) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        leaveDate: value ? value.format(ISO_DATE_FORMAT) : '',
+                      }))
+                    }
+                    format={DISPLAY_DATE_FORMAT}
+                    slotProps={{
+                      textField: {
+                        size: 'small',
+                        placeholder: 'DD/MM/YYYY',
+                        sx: { '& .MuiInputBase-root': { borderRadius: '0.75rem', fontSize: '0.875rem' } },
+                      },
                     }}
                   />
-                )}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="filter-date">
-                Leave Date
-              </label>
-              <div className="mt-2">
-                <DatePicker
-                  value={filters.leaveDate ? dayjs(filters.leaveDate, ISO_DATE_FORMAT) : null}
-                  onChange={(value) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      leaveDate: value ? value.format(ISO_DATE_FORMAT) : '',
-                    }))
-                  }
-                  format={DISPLAY_DATE_FORMAT}
-                  slotProps={{
-                    textField: {
-                      size: 'small',
-                      placeholder: 'DD/MM/YYYY',
-                      sx: { '& .MuiInputBase-root': { borderRadius: '0.75rem', fontSize: '0.875rem' } },
-                    },
-                  }}
-                />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        ) : null}
 
         <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Employee</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Name</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Code</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Department</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Leave Date</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
@@ -369,14 +385,14 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
                 {loading ? (
                   Array.from({ length: 3 }).map((_, idx) => (
                     <tr key={`leave-loading-${idx}`}>
-                      <td className="px-3 py-3" colSpan={4}>
+                      <td className="px-3 py-3" colSpan={5}>
                         <div className="h-4 animate-pulse rounded-full bg-slate-200" />
                       </td>
                     </tr>
                   ))
                 ) : !entries.length ? (
                   <tr>
-                    <td className="px-3 py-4 text-center text-sm text-slate-500" colSpan={4}>
+                    <td className="px-3 py-4 text-center text-sm text-slate-500" colSpan={5}>
                       No leave entries yet.
                     </td>
                   </tr>
@@ -391,6 +407,9 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
                         >
                           {entry.employeeName}
                         </button>
+                      </td>
+                      <td className="px-3 py-3 text-slate-600">
+                        {entry.empCode || employeeLookup[entry.employeeId]?.emp_code || '—'}
                       </td>
                       <td className="px-3 py-3 text-slate-600">
                         {entry.department || employeeLookup[entry.employeeId]?.department || '—'}
