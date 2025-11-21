@@ -89,13 +89,13 @@ export default function Dashboard() {
 
   const exportCsv = () => {
     if (!employees.length) return;
-    const headers = ['Code', 'Name', 'Department', 'Birthday', 'Start Date', 'Gender', 'Age', 'Phone', 'Address'];
+    const headers = ['Name', 'Code', 'Department', 'Birthday', 'Start Date', 'Gender', 'Age', 'Phone', 'Address'];
     const rows = employees.map((employee) => {
       const roundedAge = getRoundedAgeYears(employee.birthday);
       return [
-        employee.empCode || '',
         employee.name,
-        employee.department,
+        employee.empCode || '',
+        employee.department || '',
         formatDateDmy(employee.birthday),
         formatDateDmy(employee.hireDate),
         employee.gender || '',
