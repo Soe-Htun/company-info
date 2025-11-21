@@ -190,7 +190,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <div className="glass-panel space-y-4 p-4">
+      <div className="glass-panel space-y-3 px-4 py-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Leave Management</p>
@@ -205,7 +205,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
 
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4"
+          className="flex flex-col rounded-xl border border-slate-200 bg-white p-4"
           ref={formRef}
         >
           <div className="grid gap-3 md:grid-cols-3">
@@ -297,9 +297,9 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
         {error && !Object.keys(formErrors).length ? <p className="text-sm text-rose-600">{error}</p> : null}
 
         {!editingId ? (
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white px-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Filter Leave Records</p>
+              {/* <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Filter Leave Records</p> */}
               {(filters.employeeId || filters.leaveDate) && (
                 <button
                   type="button"

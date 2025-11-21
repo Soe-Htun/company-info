@@ -131,7 +131,7 @@ export function UserManagement() {
   };
 
   return (
-    <div className="glass-panel space-y-6 p-6">
+    <div className="glass-panel space-y-6 px-6 py-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-accent">access control</p>
