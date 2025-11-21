@@ -140,7 +140,7 @@ export function EmployeeEditor({
       department: form.department.trim(),
       gender: form.gender || 'Male',
       birthday: form.birthday || undefined,
-      hireDate: form.hireDate || undefined,
+      hireDate: form.hireDate ?? '',
       address: form.address.trim(),
       phone: form.phone ? form.phone.replace(/\D/g, '') : '',
     };
