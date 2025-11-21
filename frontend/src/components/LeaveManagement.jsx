@@ -313,7 +313,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
             <div className="grid gap-3 md:grid-cols-2">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="filter-employee">
-                  Employee
+                  Search
                 </label>
                 <Autocomplete
                   id="filter-employee"
@@ -331,7 +331,7 @@ export function LeaveManagement({ token, onChanged, onGoToEmployee }) {
                   renderInput={(params) => (
                     <TextField
                       {...params}
-                      placeholder="All employees"
+                      placeholder="Search name or code"
                       size="small"
                       margin="dense"
                       sx={{
